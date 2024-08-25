@@ -1,0 +1,37 @@
+spring:
+  jmx:
+    enabled: false
+  datasource:
+    url: jdbc:sqlite:./data/Database
+    username:
+    password:
+    driver-class-name: org.sqlite.JDBC
+  flyway:
+  # 是否启用flyway
+    enabled: true
+    # 编码格式，默认UTF-8
+    encoding: UTF-8
+    # 迁移sql脚本文件存放路径，默认db/migration
+    locations: classpath:db/migration
+    # 迁移sql脚本文件名称的前缀，默认V
+    sql-migration-prefix: V
+    # 迁移sql脚本文件名称的分隔符，默认2个下划线__
+    sql-migration-separator: __
+    # 迁移sql脚本文件名称的后缀
+    sql-migration-suffixes: .sql
+    # 迁移时是否进行校验，默认true
+    validate-on-migrate: true
+    # 初始化时需要设置为true
+    #baseline-on-migrate: true
+
+javafx:
+  title: 自动翻译搬运 V${version}
+  stage:
+    resizable: true
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+  type-aliases-package: com.app.po
+  mapper-locations: classpath:mapper/*.xml
+version: 1.0

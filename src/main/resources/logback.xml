@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="false" debug="false">
+    <property name="pattern" value="%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{10} - %msg%n"/>
+    <property name="logDir" value="./logs"/>
+    <property name="archiveDir" value=".logs/history"/>
+    <property name="archiveSuffix" value=".zip"/>
+    <property name="maxArchive" value="3"/>
+
+    <appender name="stdout" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="info" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logDir}/info.log</file>
+        <encoder>
+            <pattern>${pattern}</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${archiveDir}/info.%d${archiveSuffix}</fileNamePattern>
+            <maxHistory>${maxArchive}</maxHistory>
+        </rollingPolicy>
+    </appender>
+    <logger name="com.app.view_model" level="INFO"/>
+    <logger name="com.app.util" level="INFO"/>
+    <!-- 数据库相关日志 -->
+    <logger name="org.mybatis.spring" level="INFO"/>
+
+    <root level="info">
+        <appender-ref ref="info"/>
+        <appender-ref ref="stdout"/>
+    </root>
+
+</configuration>

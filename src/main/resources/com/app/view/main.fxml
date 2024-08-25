@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="borderBane" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" prefHeight="500.0"
+            prefWidth="800.0" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.app.view.MainViewController">
+    <left>
+        <VBox prefHeight="200.0" prefWidth="100.0" BorderPane.alignment="CENTER">
+            <children>
+                <Button fx:id="configView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                        mnemonicParsing="false" prefHeight="100.0"
+                        style="-fx-background-image: url(image/上传.png);-fx-background-size: cover "/>
+            </children>
+        </VBox>
+    </left>
+</BorderPane>

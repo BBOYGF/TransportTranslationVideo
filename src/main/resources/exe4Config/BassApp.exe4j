@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<exe4j version="8.0" transformSequenceNumber="3">
+  <directoryPresets config="./jre" />
+  <application name="自动搬运翻译" distributionSourceDir="E:/javaProject/BaseApp/build/libs" />
+  <executable name="自动翻译搬运" iconSet="true" iconFile="E:/javaProject/BaseApp/src/main/resources/image/icon1.ico" executableDir="." executableMode="gui" dpiAware="false" />
+  <java mainClass="org.springframework.boot.loader.JarLauncher" minVersion="1.8" maxVersion="1.8" allowBetaVM="true">
+    <searchSequence>
+      <directory location="./jre" />
+    </searchSequence>
+    <classPath>
+      <archive location="E:/javaProject/BaseApp/build/libs/BaseApp-1.0-SNAPSHOT.jar" />
+    </classPath>
+    <nativeLibraryDirectories>
+      <directory name="./jre" />
+    </nativeLibraryDirectories>
+  </java>
+</exe4j>

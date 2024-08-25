@@ -1,0 +1,18 @@
+{
+  "properties": [
+    {
+      "name": "version",
+      "type": "java.lang.String",
+      "description": "Description for version."
+    },
+    {
+      "name": "javafx.title",
+      "type": "java.lang.String",
+      "description": "Description for javafx.title."
+    },
+    {
+      "name": "javafx.stage.resizable",
+      "type": "java.lang.String",
+      "description": "Description for javafx.stage.resizable."
+    }
+  ] }
