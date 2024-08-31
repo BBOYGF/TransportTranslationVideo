@@ -72,7 +72,7 @@ public class EditVideoUtil {
         // 文件路径为/
         params.add(tempVideoFile.getAbsolutePath().split(":")[1].replace("\\", "/"));
         params.add("-vf");
-        params.add("\"subtitles=" + tempCCFile.getAbsolutePath().split(":")[1].replace("\\", "/") + ":force_style='fontname=Source Han Sans CN bold, fontSize=35,PrimaryColour=&H00ffffff,outlineColour=&H00000000,BorderStyle=2'" + "\"");
+        params.add("\"subtitles=" + tempCCFile.getAbsolutePath().split(":")[1].replace("\\", "/") + ":force_style='fontname=Source Han Sans CN bold, fontSize=40,PrimaryColour=&H00ffffff,outlineColour=&H00000000,BorderStyle=2'" + "\"");
         params.add("-c:v");
         params.add("libx264");
         params.add("-c:a");
