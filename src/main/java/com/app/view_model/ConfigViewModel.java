@@ -113,7 +113,7 @@ public class ConfigViewModel {
     /**
      * 上传
      */
-    private void upload() throws IOException, InterruptedException {
+    private void upload() throws Exception {
         // 0、先登录微信视频号
         uploadVideoUtil.loginWeChat();
         //1、先查看有没有没有处理完的
@@ -157,7 +157,7 @@ public class ConfigViewModel {
     /**
      * 执行一次完整的任务
      */
-    public void executeTask(DownloadVideo downloadVideo) throws IOException, InterruptedException {
+    public void executeTask(DownloadVideo downloadVideo) throws Exception {
         QueryWrapper<DownloadStep> stepQueryWrapper = new QueryWrapper<>();
         stepQueryWrapper.eq("main_id", downloadVideo.getId());
         List<DownloadStep> downloadStepList = stepService.list(stepQueryWrapper);

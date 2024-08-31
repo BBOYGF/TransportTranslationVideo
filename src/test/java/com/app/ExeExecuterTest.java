@@ -21,7 +21,7 @@ public class ExeExecuterTest {
 
 
     @Test
-    public void testExecute() {
+    public void testExecute() throws Exception {
         logger.info("测试");
         final String ccFile = "C:\\视频\\项目\\20231219Elon_Musk_Opens_Up_in_an_Interview,_Leaves_The_Audience_Speechless\\2_Elon_Musk_Opens_Up_in_an_Interview__Leaves_The_Audience_Speechless.srt";
         final String videoFile = "C:\\视频\\项目\\20231219Elon_Musk_Opens_Up_in_an_Interview,_Leaves_The_Audience_Speechless\\2_Elon_Musk_Opens_Up_in_an_Interview__Leaves_The_Audience_Speechless.mp4";

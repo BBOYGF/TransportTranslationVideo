@@ -481,10 +481,12 @@ public class EditVideoUtil {
         boolean delete = transform.delete();
         return resultFile.getAbsolutePath();
     }
-    public void genCCFile(String videoFile, String ccFile) {
+
+    public void genCCFile(String videoFile, String ccFile) throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.directory(new File("./temp"));
         processBuilder.redirectErrorStream(true);
+        logger.info("参数：{}|{}", videoFile, ccFile);
         processBuilder.command("./whiper/test.exe", videoFile, ccFile);
         try {
             final Process process = processBuilder.start();
@@ -493,10 +495,11 @@ public class EditVideoUtil {
             final BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
             String line;
             while ((line = bufferedReader.readLine()) != null) {
-                logger.info("参数:{}", line);
+                logger.info("{}", line);
             }
         } catch (Exception e) {
             logger.info("产生异常:", e);
+            throw new Exception("翻译字幕异常",e);
         }
     }
 }
