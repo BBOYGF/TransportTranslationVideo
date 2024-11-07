@@ -12,7 +12,7 @@ import java.io.IOException;
  * @Author guofan
  * @Create 2022/9/4
  */
-class UploadVideoUtilTest {
+public class UploadVideoUtilTest {
     /**
      * 下载字幕调试
      */

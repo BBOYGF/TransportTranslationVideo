@@ -225,7 +225,7 @@ public class UploadVideoUtil {
             Wait<WebDriver> videoInputWait = new FluentWait<>(driver).withTimeout(Duration.ofSeconds(120))
                     .pollingEvery(Duration.ofSeconds(1))
                     .ignoring(NoSuchElementException.class);
-            WebElement element = videoInputWait.until(webDriver -> webDriver.findElement(By.className("upload-btn-input-UY_qeY")));
+            WebElement element = videoInputWait.until(webDriver -> webDriver.findElement(By.xpath("/html/body/div[1]/div/div[2]/div[3]/div/div/div/div[2]/div/div/div/div[3]/div/div[1]/div/div[2]/div[1]/input")));
             element.sendKeys(videoFile.getAbsolutePath());
         } catch (Exception e) {
             logger.error("产生了异常：",e);

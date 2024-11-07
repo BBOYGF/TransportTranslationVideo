@@ -281,13 +281,13 @@ public class ConfigViewModel {
      * 测试读取视频长度
      */
     public boolean isLongVideo(String videoPath, DownloadVideo downloadVideo) throws InterruptedException {
-        String[] minute = new String[]{"0:0:0", "1:0:0", "2:0:0", "3:0:0", "4:0:0","5:0:0","6:0:0"};
+        String[] minute = new String[]{"0:0:0", "0:30:0", "1:0:0", "1:30:0", "2:0:0","2:30:0","3:0:0"};
         EditVideoUtil editVideoUtil = new EditVideoUtil();
         double videoLength = editVideoUtil.getVideoLength(new File(videoPath));
         log.info("视频长度是：{}秒", videoLength);
         logProp.set(getLogProp() + "\n视频长度是：" + videoLength + "秒");
-        if (videoLength > 60 * 60) {
-            int count = (int) Math.ceil(videoLength / (60 * 60));
+        if (videoLength > 60 * 30) {
+            int count = (int) Math.ceil(videoLength / (60 * 30));
             for (int i = 0; i < count; i++) {
                 String splitVideo = editVideoUtil.splitVideo(i + 1,
                         videoPath,
