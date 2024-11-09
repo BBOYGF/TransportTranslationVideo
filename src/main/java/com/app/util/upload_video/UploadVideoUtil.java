@@ -225,10 +225,10 @@ public class UploadVideoUtil {
             Wait<WebDriver> videoInputWait = new FluentWait<>(driver).withTimeout(Duration.ofSeconds(120))
                     .pollingEvery(Duration.ofSeconds(1))
                     .ignoring(NoSuchElementException.class);
-            WebElement element = videoInputWait.until(webDriver -> webDriver.findElement(By.xpath("/html/body/div[1]/div/div[2]/div[3]/div/div/div/div[2]/div/div/div/div[3]/div/div[1]/div/div[2]/div[1]/input")));
+            WebElement element = videoInputWait.until(webDriver -> webDriver.findElement(By.tagName("input")));
             element.sendKeys(videoFile.getAbsolutePath());
         } catch (Exception e) {
-            logger.error("产生了异常：",e);
+            logger.error("产生了异常：", e);
             throw e;
         }
         logger.info("开始上传视频");
@@ -248,7 +248,7 @@ public class UploadVideoUtil {
 
         //progress--1KEPd 有这个不上传
 
-        WebElement sendButton = driver.findElement(By.xpath("/html/body/div[1]/div/div[2]/div[3]/div/div/div/div[2]/div/div/div/div[2]/div[1]/div[14]/button[1]"));
+        WebElement sendButton = driver.findElement(By.className("primary-cECiOJ"));
         sendButton.click();
         logger.info("点击上传");
         // 点击不绑定 不用绑定了去掉
