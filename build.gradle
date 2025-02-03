@@ -30,7 +30,7 @@ javafx {
 //}
 
 dependencies {
-    implementation group: 'jacob', name: 'jacob', version: '1'
+//    implementation group: 'jacob', name: 'jacob', version: '1'
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter', version: '2.3.2.RELEASE'
 
     implementation group: 'de.roskenet', name: 'springboot-javafx-support', version: '2.1.6'

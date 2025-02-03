@@ -1,0 +1,29 @@
+Option VM
+```angular2html
+--module-path
+C:\tool\java\javafx-sdk-17.0.14\lib\
+--add-modules
+javafx.controls,javafx.fxml,javafx.web
+--add-reads
+javafx.graphics=ALL-UNNAMED
+--add-opens
+javafx.controls/com.sun.javafx.charts=ALL-UNNAMED
+--add-opens
+javafx.graphics/com.sun.javafx.iio=ALL-UNNAMED
+--add-opens
+javafx.graphics/com.sun.javafx.iio.common=ALL-UNNAMED
+--add-opens
+javafx.graphics/com.sun.javafx.css=ALL-UNNAMED
+--add-opens
+javafx.base/com.sun.javafx.runtime=ALL-UNNAMED
+--add-opens
+javafx.base/com.sun.javafx.collections=ALL-UNNAMED
+--add-opens
+javafx.controls/com.sun.javafx.charts=javafx.fxml
+--add-opens
+java.base/java.lang=ALL-UNNAMED
+```
+Chromedriver 下载地址
+```angular2html
+https://googlechromelabs.github.io/chrome-for-testing/#stable
+```
