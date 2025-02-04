@@ -97,7 +97,7 @@ public class DownloadUtil {
         // 设从请求到结束用时最长不超10分钟
         if (isRun()) {
             log.info("使用代理下载...");
-            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", 10809));
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", 10808));
             okHttpClient = new OkHttpClient.Builder()
                     .connectTimeout(60, TimeUnit.SECONDS)
                     .writeTimeout(60, TimeUnit.SECONDS)
@@ -199,6 +199,8 @@ public class DownloadUtil {
                 .replace("?", "").replace("*", "").replace("<", "")
                 .replace(">", "").replace("\"", "").replace("-", "")
                 .replace("(", "").replace(")", "").replace(" ", "_")
-                .replace(".", "").replace("'", "").replace("/", "");
+                .replace(".", "").replace("'", "").replace("/", "")
+                .replace("$","_").replace(",","_")
+                ;
     }
 }

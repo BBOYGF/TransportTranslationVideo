@@ -19,12 +19,15 @@ import java.nio.charset.StandardCharsets;
 public class ExeExecuterTest {
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
-
+    /**
+     * 生成字母测试
+     * @throws Exception 异常
+     */
     @Test
     public void testExecute() throws Exception {
         logger.info("测试");
-        final String ccFile = "C:\\视频\\项目\\20231219Elon_Musk_Opens_Up_in_an_Interview,_Leaves_The_Audience_Speechless\\2_Elon_Musk_Opens_Up_in_an_Interview__Leaves_The_Audience_Speechless.srt";
-        final String videoFile = "C:\\视频\\项目\\20231219Elon_Musk_Opens_Up_in_an_Interview,_Leaves_The_Audience_Speechless\\2_Elon_Musk_Opens_Up_in_an_Interview__Leaves_The_Audience_Speechless.mp4";
+        final String ccFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\1_DeepSeek_Panic__US_vs_China__OpenAI__40B__and_Doge_Delivers_with_Travis_Kalanick_and_David_Sacks.srt";
+        final String videoFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\1_DeepSeek_Panic__US_vs_China__OpenAI__40B__and_Doge_Delivers_with_Travis_Kalanick_and_David_Sacks.mp4";
         final EditVideoUtil editVideoUtil = new EditVideoUtil();
         editVideoUtil.genCCFile(videoFile, ccFile);
     }

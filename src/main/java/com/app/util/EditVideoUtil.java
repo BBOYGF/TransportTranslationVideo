@@ -40,7 +40,7 @@ public class EditVideoUtil {
             //通过标准输入流拿到正常错误的信息
             InputStream inputStream = process.getInputStream();
             //转成字符流输出
-            InputStreamReader reader = new InputStreamReader(inputStream, "GBK");
+            InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
             BufferedReader bufferedReader = new BufferedReader(reader);
             String line;
             //缓冲
