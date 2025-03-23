@@ -325,7 +325,8 @@ public class UploadVideoUtil {
         logger.info("上传结束");
         //                                                   //*[@id="container-wrap"]/div[2]/div/div/div[1]/div[3]/div/div[2]/div[2]/div[10]/div[5]/span/div/button
         //                                                 /html/body/div[1]/div/div[2]/div[2]/div/div/div[1]/div[3]/div/div[2]/div[2]/div[9]/div[5]/span/div/button
-        WebElement sendButton = driver.findElement(By.xpath("/html/body/div[1]/div/div[2]/div[2]/div/div/div[1]/div[3]/div/div[2]/div[2]/div[9]/div[5]/span/div/button"));
+        WebElement sendButton = driver.findElement(By.xpath("//*[@id=\"container-wrap\"]/div[2]/div/div/div[1]/div[3]/div/div[2]/div[2]/div[10]/div[5]/span/div/button"));
+        Thread.sleep(5000);
         sendButton.click();
         logger.info("点击上传");
         Thread.sleep(4000);
@@ -334,6 +335,7 @@ public class UploadVideoUtil {
 
     /**
      * 登录微信视频号
+     * 驱动更新地址：https://googlechromelabs.github.io/chrome-for-testing/#stable
      */
     public void loginWeChat() {
         System.setProperty("webdriver.chrome.driver", "C:\\tool\\chromedriver\\chromedriver.exe");
