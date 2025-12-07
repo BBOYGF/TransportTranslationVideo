@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 
@@ -169,8 +170,14 @@ public class ConfigViewModel {
             ParseResultBean resultBea;
             if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
                 ParseResultBean resultBean = downloadUtil.parseVideoResource(getUrlProp());
-                downloadVideo.setVideoUrl(resultBean.getData().getVideo());
-                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getData().getText()));
+                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+                if (any.isEmpty()) {
+                    return;
+                }
+                ParseResultBean.Media media = any.get();
+                String resourceUrl = media.getResourceUrl();
+                downloadVideo.setVideoUrl(resourceUrl);
+                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
                 videoService.updateById(downloadVideo);
                 downloadStep.setSucceed(true);
                 stepService.updateById(downloadStep);

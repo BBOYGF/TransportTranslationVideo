@@ -10,6 +10,7 @@ import com.app.util.downlod_video.DownloadUtil;
 import com.app.util.downlod_video.pojo.ParseResultBean;
 import com.app.util.upload_video.UploadVideoUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -34,18 +36,24 @@ public class DownloadUtilTest {
      */
 //    @Test
     public void loadVideoByUrl() {
-        ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=6VCdldE-IC8");
+        ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=swjMP4NEE88");
         log.info("执行完成！{}", resultBean);
     }
 
     /**
      * 下载功能测试
      */
-//    @Test
+    @Test
     public void loadVideo() throws IOException {
-        ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=udlMSe5-zP8");
+        ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=swjMP4NEE88");
         assert (resultBean != null);
-        File loadVideo = downloadUtil.loadVideo(resultBean.getData().getVideo(), downloadUtil.rename(resultBean.getData().getText()));
+        Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+        if (any.isEmpty()) {
+            return;
+        }
+        ParseResultBean.Media media = any.get();
+        String resourceUrl = media.getResourceUrl();
+        File loadVideo = downloadUtil.loadVideo(resourceUrl, downloadUtil.rename(resultBean.getText()));
         log.info("文件地址是：{}", loadVideo.getAbsolutePath());
         // 打开文件夹
         String[] cmdDir = {"explorer.exe", loadVideo.getParent()};
@@ -66,7 +74,13 @@ public class DownloadUtilTest {
     public void fullTest() throws IOException, InterruptedException {
         ParseResultBean resultBean = downloadUtil.parseVideoResource(url);
         assert (resultBean != null);
-        File loadVideo = downloadUtil.loadVideo(resultBean.getData().getVideo(), downloadUtil.rename(resultBean.getData().getText()));
+        Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+        if (any.isEmpty()) {
+            return;
+        }
+        ParseResultBean.Media media = any.get();
+        String resourceUrl = media.getResourceUrl();
+        File loadVideo = downloadUtil.loadVideo(resourceUrl, downloadUtil.rename(resultBean.getText()));
         assert (loadVideo.exists());
         log.info("文件地址是：{}", loadVideo.getAbsolutePath());
         // 打开文件夹
@@ -250,8 +264,14 @@ public class DownloadUtilTest {
             ParseResultBean resultBea;
             if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
                 ParseResultBean resultBean = downloadUtil.parseVideoResource(url);
-                downloadVideo.setVideoUrl(resultBean.getData().getVideo());
-                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getData().getText()));
+                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+                if (any.isEmpty()) {
+                    return;
+                }
+                ParseResultBean.Media media = any.get();
+                String resourceUrl = media.getResourceUrl();
+                downloadVideo.setVideoUrl(resourceUrl);
+                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
                 videoService.updateById(downloadVideo);
                 downloadStep.setSucceed(true);
                 stepService.updateById(downloadStep);

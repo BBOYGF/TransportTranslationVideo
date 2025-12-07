@@ -7,14 +7,21 @@ import com.app.util.downlod_video.pojo.ParseResultBean;
 import com.google.gson.Gson;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,7 +36,7 @@ public class DownloadUtil {
     /**
      * iiiLab视频解析接口地址
      */
-    private static final String iiiLabVideoDownloadURL = "http://service.iiilab.com/video/download";
+    private static final String API_URL = "https://service.iiilab.com/openapi/extract";
 
     /**
      * iiiLab分配的客户ID
@@ -41,48 +48,58 @@ public class DownloadUtil {
      */
     private static final String clientSecretKey = "729f7cb453fd6c8eea139e1ca07262d5";
 
+    Gson gson = new Gson();
+    private static final OkHttpClient okHttpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS) // 建议设置超时时间
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build();
+
     /**
      * 实例化HttpClient，发送http请求使用，可根据需要自行调参
      *
      * @param url 请求地址
      */
     public ParseResultBean parseVideoResource(String url) {
-        Long timestamp = System.currentTimeMillis();
-        Digester md5 = new Digester(DigestAlgorithm.MD5);
-
-        String sign = md5.digestHex(url + timestamp + clientSecretKey);
-//        String sign = DigestUtils.md5Hex(url + timestamp + clientSecretKey);
-
-        OkHttpClient okHttpClient = new OkHttpClient();
-        RequestBody requestBody = new FormBody.Builder()
-                .add("link", url)
-                .add("timestamp", String.valueOf(timestamp))
-                .add("sign", sign)
-                .add("client", client)
-                .build();
-
+        // 1. 准备数据：构建一个 Map 并转为 JSON 字符串
+        Map<String, String> params = new HashMap<>();
+        params.put("url", url);
+        String jsonString = gson.toJson(params);
+        // 2. 创建 MediaType，指定为 application/json
+        MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
+        // 3. 创建 RequestBody，传入 JSON 字符串 (而不是 FormBody)
+        RequestBody requestBody = RequestBody.create( mediaType,jsonString);
         final Request request = new Request.Builder()
-                .url(iiiLabVideoDownloadURL)
+                .url(API_URL)
+                .header("Content-Type", "application/json")
+                .header("x-client-id", client)       // 替换为你的iiiLab客户端ID
+                .header("x-client-secret", clientSecretKey)  // 替换为你的iiiLab客户密钥
                 .post(requestBody)
                 .build();
-        Call call = okHttpClient.newCall(request);
-        Response response = null;
-        try {
-            response = call.execute();
-        } catch (IOException e) {
-            log.error("请求地址{}发生了异常：", url, e);
-            e.printStackTrace();
-        }
-        ParseResultBean resultBean = null;
-        try {
+        try (
+                Response response = okHttpClient.newCall(request).execute();
+        ) {
+            if (!response.isSuccessful()) {
+                log.error("请求失败，HTTP状态码: {}", response.code());
+                // 如果需要，这里可以读取 body 里的错误信息
+                return null;
+            }
+            // 检查 body 是否为空
+            if (response.body() == null) {
+                log.error("请求成功但响应体为空");
+                return null;
+            }
+            // 5. 解析结果
             String string = response.body().string();
-            Gson gson = new Gson();
-            resultBean = gson.fromJson(string, ParseResultBean.class);
-            log.info("返回的结果为：{}", string);
+            log.info("API返回结果：{}", string);
+            ParseResultBean resultBean = gson.fromJson(string, ParseResultBean.class);
+            return resultBean;
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("请求地址 [{}] 发生网络异常：", url, e);
+            return null;
+        } catch (Exception e) {
+            log.error("JSON解析或其他异常：", e);
+            return null;
         }
-        return resultBean;
     }
 
     /**
@@ -200,7 +217,7 @@ public class DownloadUtil {
                 .replace(">", "").replace("\"", "").replace("-", "")
                 .replace("(", "").replace(")", "").replace(" ", "_")
                 .replace(".", "").replace("'", "").replace("/", "")
-                .replace("$","_").replace(",","_")
+                .replace("$", "_").replace(",", "_")
                 ;
     }
 }

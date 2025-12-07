@@ -1,95 +1,242 @@
 package com.app.util.downlod_video.pojo;
 
+import com.google.gson.annotations.SerializedName;
+
+import java.util.List;
+import java.util.Map;
+
+
 /**
- * 下载视频返回结果
- *
- * @Author guofan
- * @Create 2022/5/28
+ * iiiLab 视频解析接口响应实体类
+ * 文档地址: https://github.com/iiilab-dev/post/wiki/iiiLab%E8%A7%86%E9%A2%91%E5%9B%BE%E7%89%87%E8%A7%A3%E6%9E%90%E6%8E%A5%E5%8F%A3
  */
 public class ParseResultBean {
-    /**
-     * 成功返回200
-     * 非200代表失败，如果失败，retDesc为失败原因。
-     * 如果解析成功，data为解析结果数据，存在两种可能：
-     * 如果是视频，其中video为视频地址，一定有；cover为视频封面地址，可能为空；text为视频标题，可能为空。
-     * 如果是全民K歌的链接，返回结果里还有另外两个字段：videoType(音视频类型，两种可能值：audio, video)，songName(歌曲名称)
-     * 如果是图集，则imgs为图片地址数组。（目前小红书、Instagram、淘宝天猫支持解析图集）
-     * 如果请求失败，retCode为错误代码，retDesc为错误原因，retCode和retDesc是一对多关系，可能出现的错误原因：
-     */
-    public int retCode;
-    public String retDesc;
-    public Data data;
-    public boolean succ;
 
-    public int getRetCode() {
+    // --- 基础状态字段 (如果接口返回包含状态码) ---
+
+    @SerializedName(value = "retCode", alternate = {"ret_code", "code"})
+    private Integer retCode;
+
+    @SerializedName(value = "retMsg", alternate = {"ret_msg", "msg", "message"})
+    private String retMsg;
+
+    // --- 核心数据字段 ---
+
+    /**
+     * 视频/帖子的文案内容
+     */
+    @SerializedName("text")
+    private String text;
+
+    /**
+     * 解析后的媒体资源列表 (视频、图片、音频)
+     */
+    @SerializedName("medias")
+    private List<Media> medias;
+
+    // --- Getters & Setters ---
+
+    public Integer getRetCode() {
         return retCode;
     }
 
-    public void setRetCode(int retCode) {
+    public void setRetCode(Integer retCode) {
         this.retCode = retCode;
     }
 
-    public String getRetDesc() {
-        return retDesc;
+    public String getRetMsg() {
+        return retMsg;
     }
 
-    public void setRetDesc(String retDesc) {
-        this.retDesc = retDesc;
+    public void setRetMsg(String retMsg) {
+        this.retMsg = retMsg;
     }
 
-    public Data getData() {
-        return data;
+    public String getText() {
+        return text;
     }
 
-    public void setData(Data data) {
-        this.data = data;
+    public void setText(String text) {
+        this.text = text;
     }
 
-    public boolean isSucc() {
-        return succ;
+    public List<Media> getMedias() {
+        return medias;
     }
 
-    public void setSucc(boolean succ) {
-        this.succ = succ;
+    public void setMedias(List<Media> medias) {
+        this.medias = medias;
     }
 
-    @Override
-    public String toString() {
-        return "ResultBean{" +
-                "retCode=" + retCode +
-                ", retDesc='" + retDesc + '\'' +
-                ", data=" + data +
-                ", succ=" + succ +
-                '}';
-    }
 
-    public static class Data {
-        String cover;
-        String text;
-        String video;
+    /**
+     * 单个媒体资源对象
+     */
+    public static class Media {
 
-        public String getCover() {
-            return cover;
+        /**
+         * 媒体类型: video, image, audio
+         */
+        @SerializedName("media_type")
+        private String mediaType;
+
+        /**
+         * 默认下载地址 (通常是最高清晰度或默认清晰度)
+         */
+        @SerializedName("resource_url")
+        private String resourceUrl;
+
+        /**
+         * 预览图/封面图地址
+         */
+        @SerializedName("preview_url")
+        private String previewUrl;
+
+        /**
+         * 视频时长 (秒/毫秒，视具体接口而定，可选)
+         */
+        @SerializedName("duration")
+        private Long duration;
+
+        /**
+         * 视频宽度 (可选)
+         */
+        @SerializedName("width")
+        private Integer width;
+
+        /**
+         * 视频高度 (可选)
+         */
+        @SerializedName("height")
+        private Integer height;
+
+        /**
+         * 多清晰度列表 (仅视频有效)
+         */
+        @SerializedName("formats")
+        private List<Format> formats;
+
+        /**
+         * 下载时必须携带的请求头 (如 Referer, User-Agent)
+         */
+        @SerializedName("headers")
+        private Map<String, String> headers;
+
+        // Getters & Setters
+        public String getMediaType() {
+            return mediaType;
         }
 
-        public void setCover(String cover) {
-            this.cover = cover;
+        public void setMediaType(String mediaType) {
+            this.mediaType = mediaType;
         }
 
-        public String getText() {
-            return text;
+        public String getResourceUrl() {
+            return resourceUrl;
         }
 
-        public void setText(String text) {
-            this.text = text;
+        public void setResourceUrl(String resourceUrl) {
+            this.resourceUrl = resourceUrl;
         }
 
-        public String getVideo() {
-            return video;
+        public String getPreviewUrl() {
+            return previewUrl;
         }
 
-        public void setVideo(String video) {
-            this.video = video;
+        public void setPreviewUrl(String previewUrl) {
+            this.previewUrl = previewUrl;
+        }
+
+        public List<Format> getFormats() {
+            return formats;
+        }
+
+        public void setFormats(List<Format> formats) {
+            this.formats = formats;
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+
+        public void setHeaders(Map<String, String> headers) {
+            this.headers = headers;
+        }
+
+
+        /**
+         * 3. 提供一个辅助方法，把 String 转为 Enum
+         * 这样业务代码调用时用 getMediaTypeEnum()，非常安全
+         */
+        public Type getMediaTypeEnum() {
+            if (mediaType == null) {
+                return Type.UNKNOWN;
+            }
+            // 忽略大小写比较
+            switch (mediaType.toLowerCase()) {
+                case "video": return Type.VIDEO;
+                case "image": return Type.IMAGE;
+                case "audio": return Type.AUDIO;
+                default:      return Type.UNKNOWN; // 遇到新类型归为 UNKNOWN，程序不会崩
+            }
         }
     }
+
+    /**
+     * 视频清晰度格式对象
+     */
+    public static class Format {
+
+        /**
+         * 清晰度描述: "1080P", "超清", "标清" 等
+         */
+        @SerializedName(value = "name", alternate = {"quality", "format_id"})
+        private String name;
+
+        /**
+         * 该清晰度的下载地址
+         */
+        @SerializedName("url")
+        private String url;
+
+        /**
+         * 文件大小 (字节)
+         */
+        @SerializedName("size")
+        private Long size;
+
+        // Getters & Setters
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public Long getSize() {
+            return size;
+        }
+
+        public void setSize(Long size) {
+            this.size = size;
+        }
+
+        @Override
+        public String toString() {
+            return name + ": " + url;
+        }
+    }
+    public enum Type {
+        VIDEO, IMAGE, AUDIO, UNKNOWN
+    }
+
 }
