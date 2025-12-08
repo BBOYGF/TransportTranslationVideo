@@ -168,21 +168,22 @@ public class ConfigViewModel {
             log.info("正在执行步骤：{}。。。", downloadStep.getStepName());
             logProp.set(getLogProp() + "\n正在执行步骤" + downloadStep.getStepName());
             ParseResultBean resultBea;
-            if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
-                ParseResultBean resultBean = downloadUtil.parseVideoResource(getUrlProp());
-                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
-                if (any.isEmpty()) {
-                    return;
-                }
-                ParseResultBean.Media media = any.get();
-                String resourceUrl = media.getResourceUrl();
-                downloadVideo.setVideoUrl(resourceUrl);
-                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
-                videoService.updateById(downloadVideo);
-                downloadStep.setSucceed(true);
-                stepService.updateById(downloadStep);
-            } else if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
-                File loadVideo = downloadUtil.loadVideo(downloadVideo.getVideoUrl(), downloadVideo.getVideoTitle());
+//            if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
+//                ParseResultBean resultBean = downloadUtil.parseVideoResource(getUrlProp());
+//                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+//                if (any.isEmpty()) {
+//                    return;
+//                }
+//                ParseResultBean.Media media = any.get();
+//                String resourceUrl = media.getResourceUrl();
+//                downloadVideo.setVideoUrl(resourceUrl);
+//                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
+//                videoService.updateById(downloadVideo);
+//                downloadStep.setSucceed(true);
+//                stepService.updateById(downloadStep);
+//            } else
+            if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
+                File loadVideo = downloadUtil.downloadVideo(downloadVideo.getVideoUrl(), downloadVideo.getVideoTitle());
                 downloadVideo.setVideoPath(loadVideo.getAbsolutePath());
                 // todo 如果视频太长那么需要截取视频
                 if (isLongVideo(loadVideo.getAbsolutePath(), downloadVideo)) {
@@ -264,7 +265,9 @@ public class ConfigViewModel {
     private DownloadVideo generateTask() {
         DownloadVideo downloadVideo = new DownloadVideo();
         downloadVideo.setUrl(getUrlProp());
+        downloadVideo.setVideoUrl(getUrlProp());
         downloadVideo.setTitle(getTitleTextFieldProp());
+        downloadVideo.setVideoTitle(getTitleTextFieldProp().split("#")[0]);
         downloadVideo.setSucceed(false);
         videoService.saveOrUpdate(downloadVideo);
         //2、创建子步骤
@@ -276,6 +279,7 @@ public class ConfigViewModel {
             DownloadStep downloadStep = new DownloadStep();
             downloadStep.setStepName(stepEnum.name());
             downloadStep.setMainId(downloadVideo.getId());
+
             downloadStep.setOrderId(orderId);
             downloadStep.setSucceed(false);
             stepService.save(downloadStep);
@@ -288,7 +292,7 @@ public class ConfigViewModel {
      * 测试读取视频长度
      */
     public boolean isLongVideo(String videoPath, DownloadVideo downloadVideo) throws InterruptedException {
-        String[] minute = new String[]{"0:0:0", "0:30:0", "1:0:0", "1:30:0", "2:0:0","2:30:0","3:0:0","3:30:0","4:0:0"};
+        String[] minute = new String[]{"0:0:0", "0:30:0", "1:0:0", "1:30:0", "2:0:0", "2:30:0", "3:0:0", "3:30:0", "4:0:0"};
         EditVideoUtil editVideoUtil = new EditVideoUtil();
         double videoLength = editVideoUtil.getVideoLength(new File(videoPath));
         log.info("视频长度是：{}秒", videoLength);
@@ -341,7 +345,7 @@ public class ConfigViewModel {
             downloadStep.setMainId(subDownloadVideo.getId());
             downloadStep.setOrderId(orderId);
             downloadStep.setSucceed(false);
-            if (stepEnum.equals(DownloadStepEnum.获取下载地址) || stepEnum.equals(DownloadStepEnum.下载视频)) {
+            if (stepEnum.equals(DownloadStepEnum.下载视频)) {
                 downloadStep.setSucceed(true);
             }
             stepService.save(downloadStep);

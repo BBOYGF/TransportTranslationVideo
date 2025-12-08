@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
 
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,7 @@ public class DownloadUtilTest {
     /**
      * 下载功能测试
      */
-    @Test
+//    @Test
     public void loadVideo() throws IOException {
         ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=swjMP4NEE88");
         assert (resultBean != null);
@@ -59,6 +60,13 @@ public class DownloadUtilTest {
         String[] cmdDir = {"explorer.exe", loadVideo.getParent()};
         Runtime.getRuntime().exec(cmdDir);
     }
+
+    @Test
+    public void loadYoutubeVideo() throws IOException {
+        File test = downloadUtil.downloadVideo("https://www.youtube.com/watch?v=swjMP4NEE88", "test.mp4");
+        Desktop.getDesktop().open(test.getParentFile());
+    }
+
 
     public String url = "https://www.youtube.com/watch?v=13CZPWmke6A";
     public String title = "OpenAI 的联合创始人首席科学家Sutskever播客" +
@@ -241,7 +249,7 @@ public class DownloadUtilTest {
             downloadStep.setMainId(subDownloadVideo.getId());
             downloadStep.setOrderId(orderId);
             downloadStep.setSucceed(false);
-            if (stepEnum.equals(DownloadStepEnum.获取下载地址) || stepEnum.equals(DownloadStepEnum.下载视频)) {
+            if (stepEnum.equals(DownloadStepEnum.下载视频)) {
                 downloadStep.setSucceed(true);
             }
             stepService.save(downloadStep);
@@ -262,20 +270,21 @@ public class DownloadUtilTest {
         for (DownloadStep downloadStep : stepOrderList) {
             log.info("正在执行步骤：{}。。。", downloadStep.getStepName());
             ParseResultBean resultBea;
-            if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
-                ParseResultBean resultBean = downloadUtil.parseVideoResource(url);
-                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
-                if (any.isEmpty()) {
-                    return;
-                }
-                ParseResultBean.Media media = any.get();
-                String resourceUrl = media.getResourceUrl();
-                downloadVideo.setVideoUrl(resourceUrl);
-                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
-                videoService.updateById(downloadVideo);
-                downloadStep.setSucceed(true);
-                stepService.updateById(downloadStep);
-            } else if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
+//            if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
+//                ParseResultBean resultBean = downloadUtil.parseVideoResource(url);
+//                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
+//                if (any.isEmpty()) {
+//                    return;
+//                }
+//                ParseResultBean.Media media = any.get();
+//                String resourceUrl = media.getResourceUrl();
+//                downloadVideo.setVideoUrl(resourceUrl);
+//                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
+//                videoService.updateById(downloadVideo);
+//                downloadStep.setSucceed(true);
+//                stepService.updateById(downloadStep);
+//            } else
+            if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
                 File loadVideo = downloadUtil.loadVideo(downloadVideo.getVideoUrl(), downloadVideo.getVideoTitle());
                 downloadVideo.setVideoPath(loadVideo.getAbsolutePath());
                 // todo 如果视频太长那么需要截取视频

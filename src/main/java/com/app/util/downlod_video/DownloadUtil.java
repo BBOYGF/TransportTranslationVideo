@@ -19,9 +19,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -67,7 +65,7 @@ public class DownloadUtil {
         // 2. 创建 MediaType，指定为 application/json
         MediaType mediaType = MediaType.parse("application/json; charset=utf-8");
         // 3. 创建 RequestBody，传入 JSON 字符串 (而不是 FormBody)
-        RequestBody requestBody = RequestBody.create( mediaType,jsonString);
+        RequestBody requestBody = RequestBody.create(mediaType, jsonString);
         final Request request = new Request.Builder()
                 .url(API_URL)
                 .header("Content-Type", "application/json")
@@ -177,6 +175,44 @@ public class DownloadUtil {
         }
         log.info("用时{}毫秒", System.currentTimeMillis() - startTime);
         return videoFile;
+    }
+
+    public File downloadVideo(String url, String fileName) {
+        try {
+            // 构建命令：yt-dlp -f best [url] -o [output_path]
+            List<String> command = new ArrayList<>();
+            command.add("./lib/yt-dlp.exe");
+            // 换成下面这行：
+            command.add("--cookies");
+            command.add("./cookies.txt"); // 确保文件路径正确
+
+            command.add("-f");
+            command.add("best[ext=mp4]"); // 强制下载最佳mp4格式
+            command.add("-o");
+            command.add("./temp/" + fileName); // 保存路径
+            command.add(url);
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.redirectErrorStream(true); // 合并标准输出和错误输出
+            Process process = builder.start();
+
+            // 读取控制台输出（为了看进度）
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                log.info(line);
+            }
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                System.out.println("下载成功！");
+                return new File(fileName);
+            } else {
+                System.out.println("下载失败，退出码：" + exitCode);
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("下载失败：", e);
+        }
+        return null;
     }
 
     /**
