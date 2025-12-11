@@ -15,5 +15,5 @@ public enum DownloadStepEnum {
     压制字幕,
     合并开头,
     上传抖音,
-    上传视频号
+//    上传视频号
 }

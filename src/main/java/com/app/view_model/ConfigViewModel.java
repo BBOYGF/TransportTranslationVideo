@@ -184,9 +184,10 @@ public class ConfigViewModel {
 //            } else
             if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
                 File loadVideo = downloadUtil.downloadVideo(downloadVideo.getVideoUrl(), downloadVideo.getVideoTitle());
+//                File loadVideo=new File(downloadVideo.getVideoPath());
                 downloadVideo.setVideoPath(loadVideo.getAbsolutePath());
                 // todo 如果视频太长那么需要截取视频
-                if (isLongVideo(loadVideo.getAbsolutePath(), downloadVideo)) {
+                if (isLongVideo(downloadVideo.getVideoPath(), downloadVideo)) {
                     upload();
                     return;
                 }
@@ -240,16 +241,17 @@ public class ConfigViewModel {
                 videoService.updateById(downloadVideo);
                 downloadStep.setSucceed(true);
                 stepService.updateById(downloadStep);
-            } else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
-                File mergeFile = new File(downloadVideo.getMergeVideoPath());
-                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
-                downloadVideo.setUploadWx(true);
-                videoService.updateById(downloadVideo);
-                downloadStep.setSucceed(true);
-                stepService.updateById(downloadStep);
-                downloadVideo.setSucceed(true);
-                videoService.saveOrUpdate(downloadVideo);
             }
+//            else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
+//                File mergeFile = new File(downloadVideo.getMergeVideoPath());
+//                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
+//                downloadVideo.setUploadWx(true);
+//                videoService.updateById(downloadVideo);
+//                downloadStep.setSucceed(true);
+//                stepService.updateById(downloadStep);
+//                downloadVideo.setSucceed(true);
+//                videoService.saveOrUpdate(downloadVideo);
+//            }
             int count = (int) stepOrderList.stream().filter(downloadStep1 -> !downloadStep1.getSucceed()).count();
             if (count == 0) {
                 downloadVideo.setSucceed(true);
@@ -311,12 +313,12 @@ public class ConfigViewModel {
                 // 将本次任务都设置为完成状态
                 downloadVideo.setSucceed(true);
                 videoService.updateById(downloadVideo);
-                List<DownloadStep> currentStep = stepService.list(new QueryWrapper<DownloadStep>().eq("main_id", downloadVideo.getId()));
-                for (DownloadStep step : currentStep) {
-                    step.setSucceed(true);
-                }
-                stepService.saveBatch(currentStep);
             }
+            List<DownloadStep> currentStep = stepService.list(new QueryWrapper<DownloadStep>().eq("main_id", downloadVideo.getId()));
+            for (DownloadStep step : currentStep) {
+                step.setSucceed(true);
+            }
+            stepService.saveOrUpdateBatch(currentStep);
             return true;
         } else {
             return false;
