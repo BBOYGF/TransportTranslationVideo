@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static com.app.util.FileNameUtils.sanitizeFileName;
+
 
 public class ConfigViewModel {
     /**
@@ -116,7 +118,7 @@ public class ConfigViewModel {
      */
     private void upload() throws Exception {
         // 0、先登录微信视频号
-        uploadVideoUtil.loginWeChat();
+//        uploadVideoUtil.loginWeChat();
         //1、先查看有没有没有处理完的
         QueryWrapper<DownloadVideo> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("succeed", false);
@@ -167,24 +169,8 @@ public class ConfigViewModel {
         for (DownloadStep downloadStep : stepOrderList) {
             log.info("正在执行步骤：{}。。。", downloadStep.getStepName());
             logProp.set(getLogProp() + "\n正在执行步骤" + downloadStep.getStepName());
-            ParseResultBean resultBea;
-//            if (downloadStep.getStepName().equals(DownloadStepEnum.获取下载地址.name())) {
-//                ParseResultBean resultBean = downloadUtil.parseVideoResource(getUrlProp());
-//                Optional<ParseResultBean.Media> any = resultBean.getMedias().stream().filter(media -> media.getMediaTypeEnum() == ParseResultBean.Type.VIDEO).findAny();
-//                if (any.isEmpty()) {
-//                    return;
-//                }
-//                ParseResultBean.Media media = any.get();
-//                String resourceUrl = media.getResourceUrl();
-//                downloadVideo.setVideoUrl(resourceUrl);
-//                downloadVideo.setVideoTitle(downloadUtil.rename(resultBean.getText()));
-//                videoService.updateById(downloadVideo);
-//                downloadStep.setSucceed(true);
-//                stepService.updateById(downloadStep);
-//            } else
             if (downloadStep.getStepName().equals(DownloadStepEnum.下载视频.name())) {
                 File loadVideo = downloadUtil.downloadVideo(downloadVideo.getVideoUrl(), downloadVideo.getVideoTitle());
-//                File loadVideo=new File(downloadVideo.getVideoPath());
                 downloadVideo.setVideoPath(loadVideo.getAbsolutePath());
                 // todo 如果视频太长那么需要截取视频
                 if (isLongVideo(downloadVideo.getVideoPath(), downloadVideo)) {
@@ -204,7 +190,7 @@ public class ConfigViewModel {
                 final String parentFile = videoFile.getParent();
                 final String fileFillName = videoFile.getName();
                 final String ccFileName = fileFillName.substring(0, fileFillName.lastIndexOf("."));
-                final String ccFilePath = parentFile + "\\" + ccFileName + ".srt";
+                final String ccFilePath = parentFile + "\\" + ccFileName + ".ass";
                 editVideoUtil.genCCFile(downloadVideo.getVideoPath(), ccFilePath);
                 downloadVideo.setUploadTranslated(true);
                 downloadVideo.setCcPath(ccFilePath);
@@ -269,7 +255,14 @@ public class ConfigViewModel {
         downloadVideo.setUrl(getUrlProp());
         downloadVideo.setVideoUrl(getUrlProp());
         downloadVideo.setTitle(getTitleTextFieldProp());
-        downloadVideo.setVideoTitle(getTitleTextFieldProp().split("#")[0]);
+        String[] split = getTitleTextFieldProp().split("#");
+        String fileName;
+        if (split.length < 1) {
+            fileName = getBeginProp();
+        } else {
+            fileName = split[0];
+        }
+        downloadVideo.setVideoTitle(sanitizeFileName(fileName));
         downloadVideo.setSucceed(false);
         videoService.saveOrUpdate(downloadVideo);
         //2、创建子步骤

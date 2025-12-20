@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 自动化编辑视频工具类
@@ -59,8 +60,8 @@ public class EditVideoUtil {
      * 压制字幕
      */
     public File encodedSubtitles(File videoFile, File subtitleFile) {
-        File tempVideoFile = new File("./temp/video/" + videoFile.getName().replace("(", "").replace(")", "").replace(",", "_").replace("[", "").replace("]", ""));
-        File tempCCFile = new File("./temp/video/" + subtitleFile.getName().replace("(", "").replace(")", "").replace(",", "_").replace("[", "").replace("]", ""));
+        File tempVideoFile = new File("./temp/video/" + videoFile.getName());
+        File tempCCFile = new File("./temp/video/" + subtitleFile.getName());
         FileUtil.copy(videoFile, tempVideoFile, true);
         FileUtil.copy(subtitleFile, tempCCFile, true);
         String outPutVideoFile = "Subtitle" + videoFile.getName();
@@ -72,7 +73,9 @@ public class EditVideoUtil {
         // 文件路径为/
         params.add(tempVideoFile.getAbsolutePath().split(":")[1].replace("\\", "/"));
         params.add("-vf");
-        params.add("\"subtitles=" + tempCCFile.getAbsolutePath().split(":")[1].replace("\\", "/") + ":force_style='fontname=Source Han Sans CN bold,fontSize=35,PrimaryColour=&HFFFF00&,outlineColour=&H00000000,BorderStyle=2'" + "\"");
+        String subtitlePath = tempCCFile.getAbsolutePath().split(":")[1].replace("\\", "/");
+        // 如果路径中包含空格或特殊符号，FFmpeg滤镜中路径需要特殊转义，这里最简单的做法是直接传入
+        params.add("subtitles=" + subtitlePath);
         params.add("-c:v");
         params.add("libx264");
         params.add("-c:a");
@@ -184,7 +187,7 @@ public class EditVideoUtil {
      * 判断视频长度
      */
     public double getVideoLength(File videoFile) {
-        File tempVideoFile = new File("./video/" + videoFile.getName().replace("(", "").replace(")", "").replace(",", "_"));
+        File tempVideoFile = new File("./video/" + videoFile.getName());
         FileUtil.copy(videoFile, tempVideoFile, true);
         ProcessBuilder processBuilder = new ProcessBuilder();
         List<String> params = new ArrayList<>();
@@ -295,7 +298,7 @@ public class EditVideoUtil {
      */
     public String webmToMp4(String path) {
         File videoFile = new File(path);
-        File tempVideoFile = new File("./temp/video/" + videoFile.getName().replace("(", "").replace(")", "").replace(",", "_"));
+        File tempVideoFile = new File("./temp/video/" + videoFile.getName());
         FileUtil.copy(videoFile, tempVideoFile, true);
         // 输出文件
         String splitName = tempVideoFile.getName();
@@ -486,8 +489,12 @@ public class EditVideoUtil {
         ProcessBuilder processBuilder = new ProcessBuilder();
         processBuilder.directory(new File("./temp"));
         processBuilder.redirectErrorStream(true);
+        // 强制 Python 进程使用 UTF-8 进行输入输出，防止打印表情包时 GBK 报错
+        Map<String, String> env = processBuilder.environment();
+        env.put("PYTHONIOENCODING", "utf-8");
         logger.info("参数：{}|{}", videoFile, ccFile);
-        processBuilder.command("./whiper/test.exe", videoFile, ccFile);
+        // 模型名称改为qwen2.5:14b
+        processBuilder.command("./whiperX/WhisperX_Processor.exe", videoFile, ccFile,"qwen2.5:14b");
         try {
             final Process process = processBuilder.start();
             final InputStream inputStream = process.getInputStream();
@@ -497,8 +504,13 @@ public class EditVideoUtil {
             while ((line = bufferedReader.readLine()) != null) {
                 logger.info("{}", line);
             }
+            // 建议加上等待进程结束，以捕获非 0 的退出码
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new Exception("子进程异常退出，退出码：" + exitCode);
+            }
         } catch (Exception e) {
-            logger.info("产生异常:", e);
+            logger.error("产生异常:", e);
             throw new Exception("翻译字幕异常",e);
         }
     }

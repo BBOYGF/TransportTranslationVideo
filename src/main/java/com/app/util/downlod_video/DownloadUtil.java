@@ -45,6 +45,10 @@ public class DownloadUtil {
      * iiiLab分配的客户密钥
      */
     private static final String clientSecretKey = "729f7cb453fd6c8eea139e1ca07262d5";
+    /**
+     * 时间格式化
+     */
+    private final SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
 
     Gson gson = new Gson();
     private static final OkHttpClient okHttpClient = new OkHttpClient.Builder()
@@ -100,6 +104,7 @@ public class DownloadUtil {
         }
     }
 
+
     /**
      * 下载视频资源
      *
@@ -141,7 +146,7 @@ public class DownloadUtil {
             log.error("请求地址{}发生了异常：", videoUrl, e);
             e.printStackTrace();
         }
-        SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
+
         Date date = new Date();
         String dateString = format.format(date);
         File downloadVideo = new File("C:\\视频\\项目\\" + dateString + videoName);
@@ -178,33 +183,62 @@ public class DownloadUtil {
     }
 
     public File downloadVideo(String url, String fileName) {
+        // 1. 格式化日期
+        Date date = new Date();
+        // 假设 format 是你类里定义的 SimpleDateFormat，例如 new SimpleDateFormat("yyyyMMdd")
+        String dateString = format.format(date);
+
+        // 2. 构建完整的文件路径字符串
+        String outputFilePath = "C:\\视频\\项目\\" + dateString + fileName;
+        File parentFile = new File(outputFilePath);
+        // 【关键修复 1】获取父目录，只创建目录，不创建文件
+        if (!parentFile.exists()) {
+            parentFile.mkdirs();
+        }
+        File videoFile = new File(parentFile, fileName + ".mp4");
+        if (videoFile.exists()) {
+            return videoFile;
+        }
         try {
-            // 构建命令：yt-dlp -f best [url] -o [output_path]
             List<String> command = new ArrayList<>();
             command.add("./lib/yt-dlp.exe");
-            // 换成下面这行：
-            command.add("--cookies");
-            command.add("./cookies.txt"); // 确保文件路径正确
+
+            // 代理设置（保留你之前的修正）
+            command.add("--proxy");
+            command.add("http://127.0.0.1:10808"); // 请确保端口正确
+            command.add("--force-ipv4");
+
+            // 如果不需要cookies下载普通视频，建议注释掉下面两行，因为cookies过期也会导致报错
+            // command.add("--cookies");
+            // command.add("./cookies.txt");
 
             command.add("-f");
-            command.add("best[ext=mp4]"); // 强制下载最佳mp4格式
+            command.add("best[ext=mp4]");
+
             command.add("-o");
-            command.add("./temp/" + fileName); // 保存路径
+            command.add(videoFile.getAbsolutePath()); // 设置输出路径
+
             command.add(url);
+
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.redirectErrorStream(true); // 合并标准输出和错误输出
+            builder.redirectErrorStream(true);
             Process process = builder.start();
 
-            // 读取控制台输出（为了看进度）
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            // 【关键修复 3】解决乱码：指定编码读取流
+            // Windows CMD 默认通常是 GBK，如果乱码依然存在，请改为 "UTF-8"
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), "GBK")
+            );
+
             String line;
             while ((line = reader.readLine()) != null) {
                 log.info(line);
             }
+
             int exitCode = process.waitFor();
             if (exitCode == 0) {
                 System.out.println("下载成功！");
-                return new File(fileName);
+                return videoFile;
             } else {
                 System.out.println("下载失败，退出码：" + exitCode);
                 return null;

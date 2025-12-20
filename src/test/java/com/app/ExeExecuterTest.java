@@ -26,8 +26,8 @@ public class ExeExecuterTest {
     @Test
     public void testExecute() throws Exception {
         logger.info("测试");
-        final String ccFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\1_DeepSeek_Panic__US_vs_China__OpenAI__40B__and_Doge_Delivers_with_Travis_Kalanick_and_David_Sacks.srt";
-        final String videoFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\1_DeepSeek_Panic__US_vs_China__OpenAI__40B__and_Doge_Delivers_with_Travis_Kalanick_and_David_Sacks.mp4";
+        final String ccFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\test.ass";
+        final String videoFile = "E:\\JavaProject\\TransportTranslationVideo\\temp\\test.mp4";
         final EditVideoUtil editVideoUtil = new EditVideoUtil();
         editVideoUtil.genCCFile(videoFile, ccFile);
     }

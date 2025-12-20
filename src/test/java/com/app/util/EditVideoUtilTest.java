@@ -19,10 +19,10 @@ class EditVideoUtilTest {
     /**
      * 压制字幕视频
      */
-//    @Test
+    @Test
     void editSubtitleVideo() {
-        File videoFile = new File("c:/视频/项目/20220809密码/秘密.mp4");
-        File ccFile = new File("c:/视频/项目/20220809密码/秘密.srt");
+        File videoFile = new File("E:\\JavaProject\\TransportTranslationVideo\\temp\\test.mp4");
+        File ccFile = new File("E:\\JavaProject\\TransportTranslationVideo\\temp\\test.ass");
         File subtitles = editVideoUtil.encodedSubtitles(videoFile, ccFile);
 //        File subtitles = editVideoUtil.encodedSubtitles("/视频/项目/20220809密码/秘密.mp4", "/视频/项目/20220809密码/秘密.srt");
 

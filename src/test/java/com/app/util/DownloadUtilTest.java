@@ -63,7 +63,7 @@ public class DownloadUtilTest {
 
     @Test
     public void loadYoutubeVideo() throws IOException {
-        File test = downloadUtil.downloadVideo("https://www.youtube.com/watch?v=swjMP4NEE88", "test.mp4");
+        File test = downloadUtil.downloadVideo("https://www.youtube.com/watch?v=CuDs6tkKluw", "关于古人类历史的有争议的理论：书面语言的起源——欧文·芬克尔");
         Desktop.getDesktop().open(test.getParentFile());
     }
 
@@ -345,16 +345,17 @@ public class DownloadUtilTest {
                 videoService.updateById(downloadVideo);
                 downloadStep.setSucceed(true);
                 stepService.updateById(downloadStep);
-            } else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
-                File mergeFile = new File(downloadVideo.getMergeVideoPath());
-                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
-                downloadVideo.setUploadWx(true);
-                videoService.updateById(downloadVideo);
-                downloadStep.setSucceed(true);
-                stepService.updateById(downloadStep);
-                downloadVideo.setSucceed(true);
-                videoService.saveOrUpdate(downloadVideo);
             }
+//            else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
+//                File mergeFile = new File(downloadVideo.getMergeVideoPath());
+//                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
+//                downloadVideo.setUploadWx(true);
+//                videoService.updateById(downloadVideo);
+//                downloadStep.setSucceed(true);
+//                stepService.updateById(downloadStep);
+//                downloadVideo.setSucceed(true);
+//                videoService.saveOrUpdate(downloadVideo);
+//            }
             int count = (int) stepOrderList.stream().filter(downloadStep1 -> !downloadStep1.getSucceed()).count();
             if (count == 0) {
                 downloadVideo.setSucceed(true);
