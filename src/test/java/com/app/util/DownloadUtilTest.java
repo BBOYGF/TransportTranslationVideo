@@ -39,6 +39,7 @@ public class DownloadUtilTest {
     public void loadVideoByUrl() {
         ParseResultBean resultBean = downloadUtil.parseVideoResource("https://www.youtube.com/watch?v=swjMP4NEE88");
         log.info("执行完成！{}", resultBean);
+        log.info("标题是：{}", resultBean.getText());
     }
 
     /**
@@ -63,7 +64,30 @@ public class DownloadUtilTest {
 
     @Test
     public void loadYoutubeVideo() throws IOException {
-        File test = downloadUtil.downloadVideo("https://www.youtube.com/watch?v=CuDs6tkKluw", "关于古人类历史的有争议的理论：书面语言的起源——欧文·芬克尔");
+        String url = "https://www.youtube.com/watch?v=ZVJ0MJPtldU";
+        String fileName = "西游记";
+        
+        log.info("开始下载视频: {}", url);
+        log.info("文件名: {}", fileName);
+        
+        File test = downloadUtil.downloadVideo(url, fileName);
+        
+        if (test == null) {
+            log.error("downloadVideo() 返回 null");
+            log.error("可能原因: 1. yt-dlp.exe不存在 2. 代理未开启 3. 下载失败");
+            log.error("请检查: ./lib/yt-dlp.exe 是否存在");
+            log.error("请检查: 代理是否运行在 127.0.0.1:10808");
+            throw new RuntimeException("视频下载失败，返回null");
+        }
+        
+        log.info("下载完成，文件路径: {}", test.getAbsolutePath());
+        
+        if (!test.exists()) {
+            log.error("文件不存在: {}", test.getAbsolutePath());
+            throw new RuntimeException("视频文件不存在");
+        }
+        
+        log.info("准备打开文件所在目录: {}", test.getParentFile());
         Desktop.getDesktop().open(test.getParentFile());
     }
 

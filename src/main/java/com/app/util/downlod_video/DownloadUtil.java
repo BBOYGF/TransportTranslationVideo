@@ -193,17 +193,19 @@ public class DownloadUtil {
         File parentFile = new File(outputFilePath);
         // 【关键修复 1】获取父目录，只创建目录，不创建文件
         if (!parentFile.exists()) {
-            parentFile.mkdirs();
+            log.info("创建目录: {}", parentFile.getAbsolutePath());
+            boolean mkdirResult = parentFile.mkdirs();
+            log.info("目录创建结果: {}", mkdirResult);
         }
         File videoFile = new File(parentFile, fileName + ".mp4");
+        log.info("目标视频文件路径: {}", videoFile.getAbsolutePath());
         if (videoFile.exists()) {
+            log.info("视频文件已存在，直接返回");
             return videoFile;
         }
         try {
             List<String> command = new ArrayList<>();
             command.add("./lib/yt-dlp.exe");
-
-            // 代理设置（保留你之前的修正）
             command.add("--proxy");
             command.add("http://127.0.0.1:10808"); // 请确保端口正确
             command.add("--force-ipv4");
@@ -232,19 +234,27 @@ public class DownloadUtil {
 
             String line;
             while ((line = reader.readLine()) != null) {
-                log.info(line);
+                log.info("yt-dlp输出: {}", line);
             }
-
+            reader.close();
+            
             int exitCode = process.waitFor();
-            if (exitCode == 0) {
-                System.out.println("下载成功！");
+            log.info("yt-dlp退出码: {}", exitCode);
+            log.info("检查文件是否存在: {}", videoFile.exists());
+            
+            if (videoFile.exists()) {
+                log.info("下载成功，文件大小: {} bytes", videoFile.length());
                 return videoFile;
+            }
+            if (exitCode == 0) {
+                log.warn("退出码为0但文件不存在");
+                return videoFile.exists() ? videoFile : null;
             } else {
-                System.out.println("下载失败，退出码：" + exitCode);
+                log.error("下载失败，退出码：{}", exitCode);
                 return null;
             }
         } catch (Exception e) {
-            log.error("下载失败：", e);
+            log.error("下载过程发生异常，URL: {}, 文件名: {}", url, fileName, e);
         }
         return null;
     }
