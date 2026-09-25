@@ -1,3 +1,9 @@
 /lib/
 /whiper/
 /whiperX/
+# ChromeDriver 自动下载缓存目录，由 ChromeDriverUtil 自动生成
+/driver/
+# 开头视频渲染（movy）使用的临时 Chrome 用户目录
+/temp/chrome-movy/
+# 上传过程的网页快照（PageDumpUtil 生成，用于排查故障）
+/logs/page-dump/

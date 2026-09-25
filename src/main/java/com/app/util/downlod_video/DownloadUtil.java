@@ -50,6 +50,26 @@ public class DownloadUtil {
      */
     private final SimpleDateFormat format = new SimpleDateFormat("yyyyMMdd");
 
+    /**
+     * yt-dlp 可执行文件（相对程序运行目录）
+     */
+    private static final String YT_DLP = "./lib/yt-dlp.exe";
+
+    /**
+     * 代理地址，与 loadVideo 中保持一致
+     */
+    private static final String PROXY_URL = "http://127.0.0.1:10808";
+
+    /**
+     * 本次运行是否已经尝试过自动更新 yt-dlp
+     */
+    private static volatile boolean updateTried = false;
+
+    /**
+     * yt-dlp 是否支持 --js-runtimes（探测结果缓存）
+     */
+    private static volatile Boolean supportsJsRuntimes = null;
+
     Gson gson = new Gson();
     private static final OkHttpClient okHttpClient = new OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS) // 建议设置超时时间
@@ -182,10 +202,20 @@ public class DownloadUtil {
         return videoFile;
     }
 
+    /**
+     * 下载视频。
+     *
+     * <p>失败时会自动尝试升级 yt-dlp 后重试一次（YouTube 的
+     * "SABR-only / HTTP Error 403" 基本都是 yt-dlp 版本过旧导致）。</p>
+     *
+     * @param url      视频地址
+     * @param fileName 视频名称
+     * @return 下载好的视频文件
+     * @throws IllegalStateException 最终下载失败
+     */
     public File downloadVideo(String url, String fileName) {
         // 1. 格式化日期
         Date date = new Date();
-        // 假设 format 是你类里定义的 SimpleDateFormat，例如 new SimpleDateFormat("yyyyMMdd")
         String dateString = format.format(date);
 
         // 2. 构建完整的文件路径字符串
@@ -203,61 +233,168 @@ public class DownloadUtil {
             log.info("视频文件已存在，直接返回");
             return videoFile;
         }
+
+        if (runYtDlp(url, videoFile)) {
+            return videoFile;
+        }
+
+        // 失败兜底：升级 yt-dlp 后重试一次
+        log.warn("首次下载失败，尝试升级 yt-dlp 后重试一次");
+        updateYtDlp();
+        if (runYtDlp(url, videoFile)) {
+            return videoFile;
+        }
+        throw new IllegalStateException("视频下载失败：" + url
+                + "，请查看日志中的 yt-dlp 输出（常见原因：代理未开启、yt-dlp 过旧、视频需要登录）");
+    }
+
+    /**
+     * 执行一次 yt-dlp 下载
+     *
+     * @return 是否下载成功
+     */
+    private boolean runYtDlp(String url, File videoFile) {
+        List<String> command = new ArrayList<>();
+        command.add(YT_DLP);
+        command.add("--proxy");
+        command.add(PROXY_URL); // 请确保端口正确
+        command.add("--force-ipv4");
+        // 是否升级由程序在失败时统一控制，避免每次启动都提示版本过旧
+        command.add("--no-update");
+        command.add("--newline");
+        // 合并音视频需要 ffmpeg，程序自带 ./lib/ffmpeg.exe
+        command.add("--ffmpeg-location");
+        command.add("./lib");
+        // YouTube 现在需要 JS 运行时才能解出部分直链，否则会缺格式甚至 403
+        String nodePath = findNodePath();
+        if (nodePath != null && supportsJsRuntimes()) {
+            command.add("--js-runtimes");
+            command.add("node:" + nodePath);
+        }
+        command.add("--retries");
+        command.add("3");
+        command.add("-f");
+        command.add("bv*+ba/b");
+        command.add("--merge-output-format");
+        command.add("mp4");
+        command.add("-o");
+        command.add(videoFile.getAbsolutePath()); // 设置输出路径
+        command.add(url);
+
+        log.info("执行 yt-dlp：{}", command);
         try {
-            List<String> command = new ArrayList<>();
-            command.add("./lib/yt-dlp.exe");
-            command.add("--proxy");
-            command.add("http://127.0.0.1:10808"); // 请确保端口正确
-            command.add("--force-ipv4");
-
-            // 如果不需要cookies下载普通视频，建议注释掉下面两行，因为cookies过期也会导致报错
-            // command.add("--cookies");
-            // command.add("./cookies.txt");
-
-            command.add("-f");
-            command.add("best[ext=mp4]");
-
-            command.add("-o");
-            command.add(videoFile.getAbsolutePath()); // 设置输出路径
-
-            command.add(url);
-
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.redirectErrorStream(true);
             Process process = builder.start();
-
             // 【关键修复 3】解决乱码：指定编码读取流
             // Windows CMD 默认通常是 GBK，如果乱码依然存在，请改为 "UTF-8"
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), "GBK")
-            );
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), "GBK"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info("yt-dlp输出: {}", line);
+                }
+            }
+            log.info("yt-dlp退出码: {}", process.waitFor());
+        } catch (Exception e) {
+            log.error("下载过程发生异常，URL: {}, 文件名: {}", url, videoFile.getName(), e);
+        }
 
-            String line;
-            while ((line = reader.readLine()) != null) {
-                log.info("yt-dlp输出: {}", line);
+        boolean success = videoFile.exists();
+        log.info("检查文件是否存在: {}", success);
+        if (success) {
+            log.info("下载成功，文件大小: {} bytes", videoFile.length());
+        }
+        return success;
+    }
+
+    /**
+     * 自动升级 yt-dlp，本次运行只尝试一次
+     */
+    public void updateYtDlp() {
+        if (updateTried) {
+            return;
+        }
+        updateTried = true;
+        List<String> command = new ArrayList<>();
+        command.add(YT_DLP);
+        command.add("-U");
+        command.add("--proxy");
+        command.add(PROXY_URL);
+        log.info("开始更新 yt-dlp：{}", command);
+        try {
+            ProcessBuilder builder = new ProcessBuilder(command);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), "GBK"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info("yt-dlp更新输出: {}", line);
+                }
             }
-            reader.close();
-            
-            int exitCode = process.waitFor();
-            log.info("yt-dlp退出码: {}", exitCode);
-            log.info("检查文件是否存在: {}", videoFile.exists());
-            
-            if (videoFile.exists()) {
-                log.info("下载成功，文件大小: {} bytes", videoFile.length());
-                return videoFile;
+            process.waitFor();
+        } catch (Exception e) {
+            log.warn("更新 yt-dlp 失败，可手动执行 {} -U", YT_DLP, e);
+        }
+    }
+
+    /**
+     * 查找本机 node 路径，供 yt-dlp 作为 JS 运行时使用
+     */
+    private String findNodePath() {
+        String[] candidates = {
+                "C:\\tool\\nodejs\\node.exe",
+                "C:\\Program Files\\nodejs\\node.exe",
+                "C:\\Program Files (x86)\\nodejs\\node.exe"
+        };
+        for (String candidate : candidates) {
+            if (new File(candidate).exists()) {
+                return candidate;
             }
-            if (exitCode == 0) {
-                log.warn("退出码为0但文件不存在");
-                return videoFile.exists() ? videoFile : null;
-            } else {
-                log.error("下载失败，退出码：{}", exitCode);
-                return null;
+        }
+        try {
+            Process process = new ProcessBuilder("where", "node").redirectErrorStream(true).start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line = reader.readLine();
+                if (line != null && !line.isBlank() && new File(line.trim()).exists()) {
+                    return line.trim();
+                }
             }
         } catch (Exception e) {
-            log.error("下载过程发生异常，URL: {}, 文件名: {}", url, fileName, e);
+            log.debug("查找 node 失败：{}", e.getMessage());
         }
+        log.warn("未找到 node，YouTube 部分格式可能无法解析，建议安装 Node.js");
         return null;
     }
+
+    /**
+     * 探测 yt-dlp 是否支持 --js-runtimes（旧版本没有该参数，直接传会报错）
+     */
+    private boolean supportsJsRuntimes() {
+        if (supportsJsRuntimes != null) {
+            return supportsJsRuntimes;
+        }
+        boolean supported = false;
+        try {
+            Process process = new ProcessBuilder(YT_DLP, "--help").redirectErrorStream(true).start();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.contains("--js-runtimes")) {
+                        supported = true;
+                        break;
+                    }
+                }
+            }
+            process.waitFor();
+        } catch (Exception e) {
+            log.debug("探测 --js-runtimes 失败：{}", e.getMessage());
+        }
+        supportsJsRuntimes = supported;
+        return supported;
+    }
+
 
     /**
      * 判断某个程序是否在运行

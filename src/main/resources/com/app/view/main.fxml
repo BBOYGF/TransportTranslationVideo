@@ -13,6 +13,8 @@
                 <Button fx:id="configView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
                         mnemonicParsing="false" prefHeight="100.0"
                         style="-fx-background-image: url(image/上传.png);-fx-background-size: cover "/>
+                <Button fx:id="statusView" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                        mnemonicParsing="false" prefHeight="100.0" text="状态"/>
             </children>
         </VBox>
     </left>

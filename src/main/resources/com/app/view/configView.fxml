@@ -9,34 +9,68 @@
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 
-<GridPane hgap="10.0" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" vgap="10.0" xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.app.view.ConfigView">
+<GridPane hgap="10.0" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" vgap="10.0"
+          xmlns="http://javafx.com/javafx/8.0.171" xmlns:fx="http://javafx.com/fxml/1"
+          fx:controller="com.app.view.ConfigView">
     <columnConstraints>
-        <ColumnConstraints hgrow="NEVER" maxWidth="1.7976931348623157E308" minWidth="-Infinity" />
-        <ColumnConstraints hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
-        <ColumnConstraints maxWidth="1.7976931348623157E308" minWidth="-Infinity" />
+        <ColumnConstraints hgrow="NEVER" maxWidth="1.7976931348623157E308" minWidth="-Infinity"/>
+        <ColumnConstraints hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
+        <ColumnConstraints maxWidth="1.7976931348623157E308" minWidth="-Infinity"/>
 
     </columnConstraints>
     <rowConstraints>
-        <RowConstraints />
-        <RowConstraints vgrow="SOMETIMES" />
-        <RowConstraints />
-        <RowConstraints maxHeight="1.7976931348623157E308" vgrow="SOMETIMES" />
-        <RowConstraints />
-        <RowConstraints maxHeight="1.7976931348623157E308" vgrow="ALWAYS" />
-        <RowConstraints maxHeight="1.7976931348623157E308" vgrow="SOMETIMES" />
+        <RowConstraints/>
+        <RowConstraints vgrow="SOMETIMES"/>
+        <RowConstraints/>
+        <RowConstraints/>
+        <RowConstraints/>
+        <RowConstraints/>
+        <RowConstraints/>
+        <RowConstraints maxHeight="1.7976931348623157E308" vgrow="ALWAYS"/>
+        <RowConstraints maxHeight="1.7976931348623157E308" vgrow="SOMETIMES"/>
     </rowConstraints>
     <padding>
-        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+        <Insets bottom="10.0" left="10.0" right="10.0" top="10.0"/>
     </padding>
     <children>
-        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="URL：" />
-        <TextField fx:id="urlTextField" GridPane.columnIndex="1" />
-        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="标题：" GridPane.rowIndex="1" />
-        <TextArea fx:id="titleTextField" maxHeight="1.7976931348623157E308" prefHeight="100.0" wrapText="true" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" text="开头短视频：" GridPane.rowIndex="2" />
-        <TextField fx:id="beginTextField" GridPane.columnIndex="1" GridPane.rowIndex="2" />
-        <Button fx:id="choiceBeginButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minWidth="-Infinity" mnemonicParsing="false" onAction="#onChoiceBeginButtonClick" text="选择视频文件" GridPane.columnIndex="2" GridPane.rowIndex="2" />
-        <Button fx:id="uploadButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" mnemonicParsing="false" onAction="#onUploadButtonClick" prefHeight="50.0" text="一键搬运" GridPane.columnIndex="1" GridPane.rowIndex="4" />
-        <TextArea fx:id="logTextArea" editable="false" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" wrapText="true" GridPane.columnSpan="3" GridPane.hgrow="ALWAYS" GridPane.rowIndex="5" GridPane.vgrow="ALWAYS" />
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="URL："/>
+        <TextField fx:id="urlTextField" GridPane.columnIndex="1"/>
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="标题：" GridPane.rowIndex="1"/>
+        <TextArea fx:id="titleTextField" maxHeight="1.7976931348623157E308" prefHeight="100.0" wrapText="true"
+                  GridPane.columnIndex="1" GridPane.rowIndex="1"/>
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="开头短视频：" GridPane.rowIndex="2"/>
+        <TextField fx:id="beginTextField" promptText="可直接选现成的开头短视频（下面的图片+标题二选一）"
+                   GridPane.columnIndex="1" GridPane.rowIndex="2"/>
+        <Button fx:id="choiceBeginButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                minWidth="-Infinity" mnemonicParsing="false" onAction="#onChoiceBeginButtonClick" text="选择视频文件"
+                GridPane.columnIndex="2" GridPane.rowIndex="2"/>
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="开头主标题：" GridPane.rowIndex="3"/>
+        <TextField fx:id="beginTitle1TextField" GridPane.columnIndex="1" GridPane.rowIndex="3"/>
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="开头副标题：" GridPane.rowIndex="4"/>
+        <TextField fx:id="beginTitle2TextField" GridPane.columnIndex="1" GridPane.rowIndex="4"/>
+        <Button fx:id="generateBeginButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                minWidth="-Infinity" mnemonicParsing="false" onAction="#onGenerateBeginButtonClick"
+                text="选图片生成开头" GridPane.columnIndex="2" GridPane.rowIndex="4"/>
+        <Label alignment="CENTER_RIGHT" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+               text="开头图片：" GridPane.rowIndex="5"/>
+        <TextField fx:id="beginImageTextField" promptText="合成开头视频用的图片（配合上面两个标题）"
+                   GridPane.columnIndex="1" GridPane.rowIndex="5"/>
+        <Button fx:id="choiceBeginImageButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                minWidth="-Infinity" mnemonicParsing="false" onAction="#onChoiceBeginImageButtonClick"
+                text="选择图片" GridPane.columnIndex="2" GridPane.rowIndex="5"/>
+        <Button fx:id="uploadButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                mnemonicParsing="false" onAction="#onUploadButtonClick" prefHeight="50.0" text="一键搬运"
+                GridPane.columnIndex="1" GridPane.rowIndex="6"/>
+        <Button fx:id="loginDouYinButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
+                minWidth="-Infinity" mnemonicParsing="false" onAction="#onLoginDouYinButtonClick" prefHeight="50.0"
+                text="登录抖音" GridPane.columnIndex="2" GridPane.rowIndex="6"/>
+        <TextArea fx:id="logTextArea" editable="false" maxHeight="1.7976931348623157E308"
+                  maxWidth="1.7976931348623157E308" wrapText="true" GridPane.columnSpan="3" GridPane.hgrow="ALWAYS"
+                  GridPane.rowIndex="7" GridPane.vgrow="ALWAYS"/>
     </children>
 </GridPane>

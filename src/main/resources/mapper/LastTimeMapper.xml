@@ -4,14 +4,18 @@
 
     <!-- 通用查询映射结果 -->
     <resultMap id="BaseResultMap" type="com.app.pojo.LastTime">
-        <result column="url" property="url" />
-        <result column="title" property="title" />
-        <result column="begin_video_path" property="beginVideoPath" />
+        <result column="url" property="url"/>
+        <result column="title" property="title"/>
+        <result column="begin_video_path" property="beginVideoPath"/>
+        <result column="begin_title1" property="beginTitle1"/>
+        <result column="begin_title2" property="beginTitle2"/>
+        <result column="begin_image_path" property="beginImagePath"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        url, title, begin_video_path
+        url
+        , title, begin_video_path, begin_title1, begin_title2, begin_image_path
     </sql>
 
 </mapper>
