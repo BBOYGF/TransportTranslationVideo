@@ -75,7 +75,7 @@ public class ConfigViewModel {
     private final SimpleBooleanProperty uploadProp = new SimpleBooleanProperty();
 
 
-    private final SimpleStringProperty logProp = new SimpleStringProperty();
+    private final SimpleStringProperty logProp = new SimpleStringProperty("");
     private DownloadVideoServiceImpl videoService;
     private DownloadStepServiceImpl stepService;
     private UploadVideoUtil uploadVideoUtil;
@@ -676,7 +676,8 @@ public class ConfigViewModel {
 
 
     public String getLogProp() {
-        return logProp.get();
+        // null 兜底：防止日志拼接出 "null\n..." 显示在界面第一行
+        return logProp.get() == null ? "" : logProp.get();
     }
 
     public SimpleStringProperty logPropProperty() {
