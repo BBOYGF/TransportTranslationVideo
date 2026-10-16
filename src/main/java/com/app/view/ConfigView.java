@@ -52,6 +52,9 @@ public class ConfigView {
     public Button loginDouYinButton;
 
 
+    public Button loginWeChatButton;
+
+
     public TextArea logTextArea;
 
 
@@ -177,6 +180,21 @@ public class ConfigView {
 
         task.setOnFailed(event -> {
             logger.error("抖音登录失败", task.getException());
+            AlertUtil.show("提示", "登录失败!" + task.getException().getMessage());
+        });
+    }
+
+
+    /**
+     * 登录微信视频号：登录态保存在固定用户目录，只需登录一次。
+     */
+    public void onLoginWeChatButtonClick() {
+        Task<Void> task = viewModel.loginWeChat();
+
+        task.setOnSucceeded(event -> AlertUtil.show("提示", "视频号登录成功！"));
+
+        task.setOnFailed(event -> {
+            logger.error("视频号登录失败", task.getException());
             AlertUtil.show("提示", "登录失败!" + task.getException().getMessage());
         });
     }

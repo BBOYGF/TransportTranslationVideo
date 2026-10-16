@@ -7,6 +7,7 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.RowConstraints?>
 
 <GridPane hgap="10.0" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" vgap="10.0"
@@ -66,9 +67,15 @@
         <Button fx:id="uploadButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
                 mnemonicParsing="false" onAction="#onUploadButtonClick" prefHeight="50.0" text="一键搬运"
                 GridPane.columnIndex="1" GridPane.rowIndex="6"/>
-        <Button fx:id="loginDouYinButton" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308"
-                minWidth="-Infinity" mnemonicParsing="false" onAction="#onLoginDouYinButtonClick" prefHeight="50.0"
-                text="登录抖音" GridPane.columnIndex="2" GridPane.rowIndex="6"/>
+        <HBox alignment="CENTER" spacing="6.0" GridPane.columnIndex="2" GridPane.rowIndex="6">
+            <children>
+                <Button fx:id="loginDouYinButton" maxHeight="1.7976931348623157E308"
+                        mnemonicParsing="false" onAction="#onLoginDouYinButtonClick" prefHeight="50.0" text="登录抖音"/>
+                <Button fx:id="loginWeChatButton" maxHeight="1.7976931348623157E308"
+                        mnemonicParsing="false" onAction="#onLoginWeChatButtonClick" prefHeight="50.0"
+                        text="登录视频号"/>
+            </children>
+        </HBox>
         <TextArea fx:id="logTextArea" editable="false" maxHeight="1.7976931348623157E308"
                   maxWidth="1.7976931348623157E308" wrapText="true" GridPane.columnSpan="3" GridPane.hgrow="ALWAYS"
                   GridPane.rowIndex="7" GridPane.vgrow="ALWAYS"/>

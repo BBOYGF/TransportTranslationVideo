@@ -196,6 +196,31 @@ public class ConfigViewModel {
     }
 
     /**
+     * 打开浏览器等待人工登录微信视频号。
+     * 登录态保存在固定用户目录（C:\tool\chromedriver\UserData），只需登录一次。
+     *
+     * @return 登录任务
+     */
+    public Task<Void> loginWeChat() {
+        log.info("开始登录视频号");
+        Task<Void> task = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                logProp.set(getLogProp() + "\n请在浏览器中完成视频号登录（扫码）");
+                UploadVideoUtil util = new UploadVideoUtil();
+                util.loginWeChat();
+                logProp.set(getLogProp() + "\n视频号登录成功，登录态已保存");
+                return null;
+            }
+        };
+        Thread thread = new Thread(task);
+        thread.setName("视频号登录任务线程");
+        thread.setDaemon(true);
+        thread.start();
+        return task;
+    }
+
+    /**
      * 初始化服务
      */
     private void initUtil() {
@@ -263,18 +288,31 @@ public class ConfigViewModel {
      */
     private String resolveBeginVideoPath() throws Exception {
         String beginPath = getBeginProp();
-        if (StringUtils.isNotBlank(beginPath) && new File(beginPath).exists()) {
+        boolean hasBeginVideo = StringUtils.isNotBlank(beginPath) && new File(beginPath).exists();
+
+        String bgImagePath = getBeginImageProp();
+        File imageFile = (StringUtils.isNotBlank(bgImagePath) && new File(bgImagePath).exists())
+                ? new File(bgImagePath) : null;
+
+        // 换了「开头图片」就要重新合成：否则上次生成的 webm 一直躺在「开头短视频」字段里，
+        // 会一直被复用（表现为「图片还是上一张」）。
+        // 判定依据：图片文件的改动时间晚于现成的开头短视频。
+        if (hasBeginVideo && imageFile != null
+                && imageFile.lastModified() > new File(beginPath).lastModified()) {
+            hasBeginVideo = false;
+        }
+
+        if (hasBeginVideo) {
             return beginPath;
         }
 
-        String bgImagePath = getBeginImageProp();
-        if (StringUtils.isBlank(bgImagePath) || !new File(bgImagePath).exists()) {
+        if (imageFile == null) {
             throw new IllegalStateException("没有可用的开头视频：请在「开头短视频」里选一个现成的 webm，"
                     + "或者填好「开头图片」和「开头主标题/副标题」，程序会自动合成一个");
         }
 
-        logProp.set(getLogProp() + "\n未指定现成的开头短视频，开始用「开头图片 + 标题」合成……");
-        File webm = new BeginningVideoGenerator().generate(new File(bgImagePath),
+        logProp.set(getLogProp() + "\n未指定现成的开头短视频（或用新的开头图片），开始用「开头图片 + 标题」合成……");
+        File webm = new BeginningVideoGenerator().generate(imageFile,
                 getBeginTitle1Prop(), getBeginTitle2Prop());
         logProp.set(getLogProp() + "\n开头短视频已合成：" + webm.getAbsolutePath());
         // 写回并保存，后续分段直接复用
@@ -368,17 +406,15 @@ public class ConfigViewModel {
                 videoService.updateById(downloadVideo);
                 downloadStep.setSucceed(true);
                 stepService.updateById(downloadStep);
+            } else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
+                // 视频号上传是任务里固定存在的一步：只要任务中有这一步就自动上传
+                File mergeFile = new File(downloadVideo.getMergeVideoPath());
+                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
+                downloadVideo.setUploadWx(true);
+                videoService.updateById(downloadVideo);
+                downloadStep.setSucceed(true);
+                stepService.updateById(downloadStep);
             }
-//            else if (downloadStep.getStepName().equals(DownloadStepEnum.上传视频号.name())) {
-//                File mergeFile = new File(downloadVideo.getMergeVideoPath());
-//                uploadVideoUtil.uploadWeChatVideo(downloadVideo.getTitle(), mergeFile);
-//                downloadVideo.setUploadWx(true);
-//                videoService.updateById(downloadVideo);
-//                downloadStep.setSucceed(true);
-//                stepService.updateById(downloadStep);
-//                downloadVideo.setSucceed(true);
-//                videoService.saveOrUpdate(downloadVideo);
-//            }
             int count = (int) stepOrderList.stream().filter(downloadStep1 -> !downloadStep1.getSucceed()).count();
             if (count == 0) {
                 downloadVideo.setSucceed(true);

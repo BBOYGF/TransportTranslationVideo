@@ -965,7 +965,15 @@ public class UploadVideoUtil {
 
 
     /**
-     * 上传微信视频号
+     * 上传微信视频号。
+     *
+     * <p>视频号站点结构多变，而且"视频上传控件"经常藏在 iframe 里，所以这里做了几件事：</p>
+     * <ol>
+     *   <li>不再硬切 {@code frame(0)}：先在主文档里找编辑器，找不到再遍历 iframe 智能匹配；</li>
+     *   <li>标题 / 上传控件 / 发表按钮都用多候选选择器兜底；</li>
+     *   <li>全程接入 {@link PageDumpUtil}，失败自动留下 HTML / 截图 / report，方便事后定位；</li>
+     *   <li>等视频真正上传、转码完成后再点「发表」，并确认发布成功。</li>
+     * </ol>
      *
      * @param title       标题
      * @param mergeVideos 合并后的视频
@@ -974,179 +982,61 @@ public class UploadVideoUtil {
         // 自动判断 Chrome 版本并自动下载匹配的 ChromeDriver
         ChromeDriverUtil.prepare();
         ChromeOptions chromeOptions = buildOptions(CREATOR_USER_DATA_DIR, true);
-
         WebDriver driver = createDriver(chromeOptions, CREATOR_USER_DATA_DIR);
-        WebDriverWait globalWait = new WebDriverWait(driver, Duration.ofSeconds(30));
-        JavascriptExecutor js = (JavascriptExecutor) driver;
 
+        PageDumpUtil.startRun("视频号上传_" + (mergeVideos == null ? "无文件" : mergeVideos.getName()));
         try {
-            // 2. 登录流程 (保持不变)
+            // 1. 打开视频号助手，必要时等待人工扫码登录
             driver.get("https://channels.weixin.qq.com/platform");
-            Thread.sleep(1000);
+            PageDumpUtil.snapshot(driver, "打开视频号助手");
+            ensureWeChatLogin(driver);
 
-            boolean isLogin = false;
-            try {
-                driver.findElement(By.className("login-content"));
-            } catch (NoSuchElementException e) {
-                isLogin = true;
-            }
-            if (!isLogin) {
-                // 扫码登录逻辑
-                Wait<WebDriver> loginWait = new FluentWait<>(driver).withTimeout(Duration.ofMinutes(20)).pollingEvery(Duration.ofSeconds(1)).ignoring(NoSuchElementException.class);
-                loginWait.until(webDriver -> webDriver.findElement(By.className("finder-nickname")));
-            }
-
-            // 3. 进入发表页
+            // 2. 进入发表页
             driver.get("https://channels.weixin.qq.com/platform/post/create");
-            logger.info("进入发表页面...");
+            logger.info("进入视频号发表页面...");
+            PageDumpUtil.snapshot(driver, "进入发表页");
+            // 视频号发表页是 Wujie 微前端，编辑器可能懒加载，先等一会儿再诊断
+            sleepQuietly(8000);
 
-            // ==========================================
-            // 步骤 1: 锁定 Frame (标题成功的关键)
-            // ==========================================
-            try {
-                driver.switchTo().defaultContent();
-                // 既然之前 frame(0) 能输标题，说明就是它，不用改
-                globalWait.until(ExpectedConditions.frameToBeAvailableAndSwitchToIt(0));
-                logger.info("✅ 已切入编辑器 Frame");
-                Thread.sleep(2000);
-            } catch (Exception e) {
-                throw new RuntimeException("Frame 切换失败");
-            }
+            // 3. 归位到主文档上下文（视频号是 Wujie Shadow DOM，无需切 frame），
+            //    并打印（含 Shadow DOM 的）页面元素 + 把完整 DOM 落盘，便于失败定位
+            resetWeChatContext(driver);
+            dumpWeChatDom(driver);
+            PageDumpUtil.snapshot(driver, "定位编辑器上下文");
 
+            // 4. 填写标题
+            fillWeChatTitle(driver, title);
+            PageDumpUtil.snapshot(driver, "填写标题", "title=" + title);
 
-            boolean isSuccess = false;
-            int attempts = 0;
-            // 2. 循环重试：在一个 JS 命令里同时完成“查找”和“赋值”
-            // 只有这样才能避开 StaleElementReferenceException
-            while (attempts < 20) { // 最多试 20 次 (约 20秒)
-                try {
-                    // 这段 JS 脚本做了三件事：
-                    // 1. 现找元素
-                    // 2. 如果找到，直接赋值并触发事件
-                    // 3. 返回 true 或 false
-                    String script =
-                            "var target = document.querySelector('div[contenteditable=\"true\"]') || document.querySelector('.input-editor');" +
-                                    "if (target) {" +
-                                    " target.click();" + // 尝试聚焦
-                                    " target.innerText = arguments[0];" + // 赋值
-                                    " target.dispatchEvent(new Event('input', { bubbles: true }));" + // 通知 Vue/React 发生了改变
-                                    " target.dispatchEvent(new Event('change', { bubbles: true }));" +
-                                    " return true;" + // 告诉 Java 成功了
-                                    "} else {" +
-                                    " return false;" + // 没找到，告诉 Java 失败
-                                    "}";
-                    // 注意：这里只传 title 字符串，不传 WebElement 对象！
-                    // 避开了 WebElement 过期的问题
-                    Boolean result = (Boolean) js.executeScript(script, title);
-                    if (result) {
-                        isSuccess = true;
-                        logger.info(">>> 标题输入成功！(第 " + (attempts + 1) + " 次尝试)");
-                        break;
-                    }
-                } catch (Exception e) {
-                    // 忽略 JS 执行中的任何错误，坚持重试
-                    // logger.warn("JS执行微小异常，忽略并重试...");
-                }
-                Thread.sleep(1000); // 等待 1 秒
-                attempts++;
-                logger.info("编辑器未就绪或页面正在刷新，正在重试 (" + attempts + "/20)...");
-            }
+            // 5. 选择视频文件
+            selectWeChatVideoFile(driver, mergeVideos);
+            PageDumpUtil.snapshot(driver, "已选择视频文件");
 
-            if (!isSuccess) {
-                logger.error("!!! 最终失败：20秒内无法通过 JS 注入标题 !!!");
-                String src = driver.getPageSource();
-                logger.error("当前 Iframe 源码前 1000 字符: " + (src.length() > 1000 ? src.substring(0, 1000) : src));
-                throw new RuntimeException("标题输入失败，页面元素不稳定。");
-            }
-            // ==========================================
-            // 步骤 3: 仿照标题逻辑的【JS 查找 + 显形 + 上传】
-            // ==========================================
-            logger.info("准备进行【JS 查找模式】视频上传...");
+            // 6. 等待上传 / 转码完成
+            waitWeChatUploadFinished(driver, Duration.ofMinutes(30));
+            PageDumpUtil.snapshot(driver, "上传完成");
 
-            boolean uploadSuccess = false;
-            int uploadAttempts = 0;
+            // 7. 点发表并确认成功
+            publishWeChatVideoAndConfirm(driver);
+            PageDumpUtil.snapshot(driver, "发布成功");
 
-            while (uploadAttempts < 20) {
-                try {
-                    // 这段 JS 的逻辑和你标题的逻辑几乎一模一样：
-                    // 1. 在当前 DOM 里找 input[type=file]
-                    // 2. 找到了就强制把它的 display 改为 block (解决不能操作的问题)
-                    // 3. 把这个元素返回给 Java
-                    String findFileScript =
-                            "var target = document.querySelector('input[type=\"file\"]');" +
-                                    "if (target) {" +
-                                    "    target.style.display = 'block';" +      // 关键：强制显形
-                                    "    target.style.visibility = 'visible';" + // 关键：强制可见
-                                    "    target.style.width = '1px';" +          // 防止它是 0x0 大小
-                                    "    target.style.height = '1px';" +
-                                    "    target.style.opacity = '1';" +
-                                    "    return target;" +                       // 找到了，返回给 Java
-                                    "} else {" +
-                                    "    return null;" +                         // 没找到
-                                    "}";
-
-                    // 执行 JS，尝试拿到 WebElement
-                    // 这里不用 expectedConditions，直接问浏览器要元素，和你标题逻辑一样直接
-                    WebElement fileInput = (WebElement) js.executeScript(findFileScript);
-
-                    if (fileInput != null) {
-                        logger.info(">>> JS 成功捕获并处理了上传控件！(第 " + (uploadAttempts + 1) + " 次尝试)");
-
-                        // 此时元素已经被 JS 强制显形了，Selenium 可以直接操作
-                        fileInput.sendKeys(mergeVideos.getAbsolutePath());
-
-                        logger.info("✅ 视频路径发送成功！");
-                        uploadSuccess = true;
-                        break; // 成功退出循环
-                    }
-
-                } catch (Exception e) {
-                    // 忽略中间的报错，坚持重试
-                    logger.warn("上传控件查找微小异常，重试中...");
-                }
-
-                Thread.sleep(1000); // 找不到就睡 1 秒再找
-                uploadAttempts++;
-                logger.info("正在搜寻上传入口 (" + uploadAttempts + "/20)...");
-            }
-
-            if (!uploadSuccess) {
-                throw new RuntimeException("上传失败：20秒内 JS 未能定位到 input[type='file']");
-            }
-
-            // ==========================================
-            // 步骤 4: 等待【发表】按钮
-            // ==========================================
-            logger.info("等待上传进度及发表按钮...");
-
-            // 视频上传需要时间，这里必须给足耐心
-            WebDriverWait uploadWait = new WebDriverWait(driver, Duration.ofMinutes(10));
-
-            // 定位“发表”按钮
-            // 微信的按钮通常是 button 标签或者 div role='button'
-            WebElement sendBtn = uploadWait.until(
-                    ExpectedConditions.elementToBeClickable(By.xpath("//button[contains(text(),'发表')] | //div[contains(text(),'发表') and @role='button']"))
-            );
-
-            logger.info("发表按钮已激活，准备点击...");
-            Thread.sleep(1000);
-            js.executeScript("arguments[0].click();", sendBtn);
-
-            // 等待成功跳转或提示
-            Thread.sleep(5000);
-            logger.info("🎉 任务完成！");
-
+            logger.info("视频号发布完成！");
         } catch (Exception e) {
-            logger.error("❌ 任务失败", e);
-            throw e;
+            logger.error("视频号上传失败", e);
+            PageDumpUtil.dumpOnFailure(driver, "视频号上传失败", e);
+            rethrow(e);
+        } finally {
+            PageDumpUtil.endRun();
+            if (driver != null) {
+                driver.quit();
+            }
         }
-        if (driver != null) driver.quit();
-
     }
 
     /**
-     * 登录微信视频号
-     * 驱动更新地址：https://googlechromelabs.github.io/chrome-for-testing/#stable
+     * 登录微信视频号。
+     *
+     * <p>驱动更新地址：https://googlechromelabs.github.io/chrome-for-testing/#stable</p>
      */
     public void loginWeChat() {
         // 自动判断 Chrome 版本并自动下载匹配的 ChromeDriver
@@ -1154,33 +1044,22 @@ public class UploadVideoUtil {
         ChromeOptions chromeOptions = buildOptions(CREATOR_USER_DATA_DIR, true);
         WebDriver driver = createDriver(chromeOptions, CREATOR_USER_DATA_DIR);
 
-        driver.get("https://channels.weixin.qq.com/platform");
+        PageDumpUtil.startRun("视频号登录");
         try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        boolean isLogin = false;
-        try {
-            driver.findElement(By.className("login-content"));
+            driver.get("https://channels.weixin.qq.com/platform");
+            PageDumpUtil.snapshot(driver, "打开视频号助手");
+            ensureWeChatLogin(driver);
+            logger.info("视频号登录成功！");
         } catch (Exception e) {
-            if (e instanceof NoSuchElementException) {
-                logger.info("没有找到登录按钮，应该是登录了");
-                isLogin = true;
-            } else {
-                throw e;
+            logger.error("视频号登录失败", e);
+            PageDumpUtil.dumpOnFailure(driver, "视频号登录失败", e);
+            throw new RuntimeException("视频号登录失败：" + e.getMessage(), e);
+        } finally {
+            PageDumpUtil.endRun();
+            if (driver != null) {
+                driver.quit();
             }
         }
-        if (!isLogin) {
-            Wait<WebDriver> uploadVideoButtonWait = new FluentWait<>(driver).withTimeout(Duration.ofMinutes(20))
-                    .pollingEvery(Duration.ofSeconds(1))
-                    .ignoring(NoSuchElementException.class);
-            uploadVideoButtonWait.until(webDriver -> webDriver.findElement(By.className("finder-nickname")));
-            logger.info("登录成功！");
-            driver.quit();
-            return;
-        }
-        driver.quit();
     }
 
     /**
@@ -1233,6 +1112,1020 @@ public class UploadVideoUtil {
             chromeOptions.setExperimentalOption("useAutomationExtension", false);
         }
         return chromeOptions;
+    }
+
+    // ==========================================================================
+    // 微信视频号（channels.weixin.qq.com）相关：选择器 + 流程辅助
+    // 和抖音一样，一个逻辑元素对应一组候选选择器，站点改版时只需在这里补候选。
+    // ==========================================================================
+
+    /**
+     * 视频号：未登录时会出现登录二维码 / 登录文案（按实测 login.html 的真实结构）。
+     *
+     * <p><b>重要</b>：判断未登录不能依赖"内容管理 / 发表视频"这类文案 ——
+     * 登录页的宣传卡片里同样有"内容管理"文案，实测会把登录页误判成已登录
+     * （这就是"2 秒就显示登录成功、实际还在 login.html"的原因）。</p>
+     */
+    private By[] wechatLoginForm() {
+        return new By[]{
+                By.id("wx-oauth-container"),
+                By.cssSelector("#wx-oauth-container iframe"),
+                By.cssSelector(".qrcode-area"),
+                By.cssSelector(".qrcode-tip"),
+                By.cssSelector(".login-qrcode-wrap"),
+                By.xpath("//*[contains(text(),'登录视频号助手')]")
+        };
+    }
+
+    // ---- 视频号元素选择器：**必须用 CSS**，因为要穿透 Shadow DOM（Wujie）----
+    //
+    // 视频号助手是「无界 Wujie」微前端，真实表单都在 <wujie-app> 的 Shadow DOM 里。
+    // Selenium 的 By.cssSelector / By.xpath 都**穿不透 Shadow DOM**（这就是"输入框/上传控件
+    // 一个都找不到"的真正原因，跟风控无关），所以这里统一用 CSS 选择器字符串，
+    // 再由下面的 deepFindXxx（JS 递归 shadowRoot）来查找。
+
+    /**
+     * 视频号：视频描述（富文本框）
+     *
+     * <p>实测真实 HTML：{@code <div contenteditable="" data-placeholder="添加描述" class="input-editor">}。
+     * 注意它的 contenteditable 值是<b>空字符串</b>（不是 "true"），所以
+     * {@code [contenteditable='true']} 匹配不到，必须用 class {@code .input-editor} 或不限值。</p>
+     */
+    private String[] wechatDescInputCss() {
+        return new String[]{
+                "div.input-editor",
+                "div.input-editor[contenteditable]",
+                "[contenteditable]",
+                "textarea"
+        };
+    }
+
+    /**
+     * 视频号：短标题输入框
+     */
+    private String[] wechatShortTitleCss() {
+        return new String[]{
+                "input[placeholder*='短标题']",
+                "input[placeholder*='标题']",
+                "input[type='text']"
+        };
+    }
+
+    /**
+     * 视频号：视频上传控件（隐藏的 input[type=file]）
+     */
+    private String[] wechatFileInputCss() {
+        return new String[]{
+                "input[type='file'][accept*='video']",
+                "input[type='file'][accept*='mp4']",
+                "input[type='file']"
+        };
+    }
+
+    // ==========================================================================
+    // 穿透 Shadow DOM 的深度查询工具（Wujie 微前端必须用这套）
+    // ==========================================================================
+
+    /**
+     * JS：递归穿透 Shadow DOM 查找元素
+     */
+    private static final String DEEP_QUERY_JS =
+            "function __oc_deepAll(sel, root) {" +
+                    "  root = root || document;" +
+                    "  var out = [];" +
+                    "  try { out = out.concat(Array.prototype.slice.call(root.querySelectorAll(sel))); } catch (e) {}" +
+                    "  var ns = root.querySelectorAll('*');" +
+                    "  for (var i = 0; i < ns.length; i++) {" +
+                    "    if (ns[i].shadowRoot) { out = out.concat(__oc_deepAll(sel, ns[i].shadowRoot)); }" +
+                    "  }" +
+                    "  return out;" +
+                    "}";
+
+    /**
+     * 递归穿透 Shadow DOM 查找所有匹配元素
+     */
+    @SuppressWarnings("unchecked")
+    private List<WebElement> deepFindAll(WebDriver driver, String css) {
+        try {
+            Object result = ((JavascriptExecutor) driver)
+                    .executeScript(DEEP_QUERY_JS + "return __oc_deepAll(arguments[0]);", css);
+            if (result instanceof List) {
+                return (List<WebElement>) result;
+            }
+        } catch (Exception e) {
+            logger.debug("deepFindAll 失败({})：{}", css, e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    /**
+     * 依次尝试多个 CSS 选择器，返回第一个命中的元素（穿透 Shadow DOM，不要求可见）
+     */
+    private WebElement deepFindFirst(WebDriver driver, String... cssList) {
+        for (String css : cssList) {
+            for (WebElement element : deepFindAll(driver, css)) {
+                return element;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 依次尝试多个 CSS 选择器，返回第一个"可见"的元素（穿透 Shadow DOM）。
+     *
+     * <p><b>注意</b>：这里<b>不能</b>用 {@code WebElement.isDisplayed()} —— 实测它对
+     * Wujie Shadow DOM 内的元素会误判为"不可见"（返回 false），从而表现为
+     * "元素明明在 DOM 里、日志却报找不到"（视频描述框就是这么被漏掉的）。
+     * 改用 JS 的 {@code getBoundingClientRect()} + {@code getComputedStyle()} 判断，
+     * 对 Shadow DOM 内元素同样准确。</p>
+     */
+    private WebElement deepFindFirstVisible(WebDriver driver, String... cssList) {
+        for (String css : cssList) {
+            for (WebElement element : deepFindAll(driver, css)) {
+                if (deepIsVisible(driver, element)) {
+                    return element;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * JS 判断（含 Shadow DOM 内的）元素是否可见。
+     *
+     * <p>用 {@code getBoundingClientRect()} 是否有面积 + {@code getComputedStyle()}
+     * 是否隐藏来判断，避免 {@code isDisplayed()} 在 Shadow DOM 上的误判。</p>
+     */
+    private boolean deepIsVisible(WebDriver driver, WebElement element) {
+        try {
+            Object ok = ((JavascriptExecutor) driver).executeScript(
+                    "var el=arguments[0];"
+                            + "if(!el) return false;"
+                            + "var r=el.getBoundingClientRect();"
+                            + "if(r.width<=0||r.height<=0) return false;"
+                            + "var s=window.getComputedStyle(el);"
+                            + "return s.visibility!=='hidden' && s.display!=='none' && s.opacity!=='0';",
+                    element);
+            return Boolean.TRUE.equals(ok);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+
+    /**
+     * 等待元素出现（穿透 Shadow DOM），超时返回 null
+     *
+     * @param visible 是否要求可见
+     */
+    private WebElement waitDeep(WebDriver driver, Duration timeout, boolean visible, String... cssList) {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            WebElement element = visible ? deepFindFirstVisible(driver, cssList) : deepFindFirst(driver, cssList);
+            if (element != null) {
+                return element;
+            }
+            sleepQuietly(500);
+        }
+        return null;
+    }
+
+    /**
+     * 是否存在任意一个"可见"的匹配元素（穿透 Shadow DOM）
+     */
+    private boolean deepExistsVisible(WebDriver driver, String... cssList) {
+        return deepFindFirstVisible(driver, cssList) != null;
+    }
+
+    /**
+     * 在（含 Shadow DOM 的）整棵文档树里按可见文本查找元素
+     */
+    private WebElement deepFindByText(WebDriver driver, String text) {
+        try {
+            Object result = ((JavascriptExecutor) driver).executeScript(
+                    "function __oc_vis(n){var r=n.getBoundingClientRect();return r.width>0&&r.height>0;}" +
+                            "function __oc_find(root, t) {" +
+                            "  var ns = root.querySelectorAll('button,[role=button],a,div,span');" +
+                            "  for (var i = 0; i < ns.length; i++) {" +
+                            "    if ((ns[i].innerText || '').trim() === t && __oc_vis(ns[i])) { return ns[i]; }" +
+                            "  }" +
+                            "  var all = root.querySelectorAll('*');" +
+                            "  for (var j = 0; j < all.length; j++) {" +
+                            "    if (all[j].shadowRoot) { var r = __oc_find(all[j].shadowRoot, t); if (r) { return r; } }" +
+                            "  }" +
+                            "  return null;" +
+                            "}" +
+                            "return __oc_find(document, arguments[0]);", text);
+            if (result instanceof WebElement) {
+                return (WebElement) result;
+            }
+        } catch (Exception e) {
+            logger.debug("deepFindByText 失败({})：{}", text, e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 判断视频号登录状态（以 <b>URL 为准</b>）。
+     *
+     * <p>实测：未登录时访问 {@code /platform} 会被重定向到 {@code /login.html}，
+     * 所以：</p>
+     * <ul>
+     *   <li>URL 含 {@code login} 或页面上出现登录二维码 → 未登录</li>
+     *   <li>URL 在 {@code /platform} 且没有登录二维码 → 已登录</li>
+     *   <li>其它（页面加载中）→ {@code null}，继续等</li>
+     * </ul>
+     *
+     * <p><b>不要</b>再用"内容管理 / 发表视频"文案判断登录态：登录页的宣传卡片里
+     * 也有"内容管理"，会把登录页误判成已登录。</p>
+     *
+     * @return {@code true}=已登录，{@code false}=未登录，{@code null}=无法判断
+     */
+    private Boolean wechatLoginState(WebDriver driver) {
+        String url = null;
+        try {
+            url = driver.getCurrentUrl();
+        } catch (Exception ignored) {
+            // 忽略
+        }
+        boolean onLoginUrl = url != null && (url.contains("login.html") || url.contains("/login"));
+        boolean hasLoginForm = WebWaitUtil.exists(driver, wechatLoginForm());
+        if (onLoginUrl || hasLoginForm) {
+            return Boolean.FALSE;
+        }
+        if (url != null && url.contains("/platform")) {
+            return Boolean.TRUE;
+        }
+        return null;
+    }
+
+    /**
+     * 连续多次都判定为"已登录"才算数。
+     *
+     * <p>未登录时访问 {@code /platform} 会先短暂停留在 platform 再被重定向到
+     * {@code login.html}，单次判断很容易误判；这里要求连续 3 次（约 3 秒）都成立。</p>
+     */
+    private boolean isWeChatLoggedInStable(WebDriver driver) {
+        for (int i = 0; i < 3; i++) {
+            if (!Boolean.TRUE.equals(wechatLoginState(driver))) {
+                return false;
+            }
+            sleepQuietly(1000);
+        }
+        return true;
+    }
+
+    /**
+     * 确保视频号已登录（未登录则等待人工扫码，最多 20 分钟）。
+     *
+     * <p>等待期间<b>不要刷新页面</b>，否则会把扫码弹窗刷掉。</p>
+     */
+    private void ensureWeChatLogin(WebDriver driver) {
+        if (isWeChatLoggedInStable(driver)) {
+            logger.info("视频号已登录");
+            return;
+        }
+        logger.info("视频号未登录，请在浏览器中扫码登录（最多等待 20 分钟）...");
+        PageDumpUtil.note("视频号未登录，等待人工扫码登录");
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(20).toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            if (isWeChatLoggedInStable(driver)) {
+                logger.info("视频号登录成功");
+                PageDumpUtil.snapshot(driver, "视频号登录成功");
+                return;
+            }
+            sleepQuietly(2000);
+        }
+        throw new IllegalStateException("视频号登录超时（20 分钟内未检测到登录成功），当前页面："
+                + WebWaitUtil.describePage(driver));
+    }
+
+    /**
+     * 静默睡眠（吞掉中断，仅用于等待轮询）
+     */
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * 视频号发表页是 Wujie 微前端，真实表单都在 Shadow DOM 里，
+     * <b>不能</b>靠 switchTo() 切 frame（那个隐藏 iframe 只是 Wujie 沙箱，
+     * 老代码切 frame(0) 切的就是它）。这里只把上下文归位到主文档，
+     * 元素查找统一走 deepFindXxx（穿透 shadow）。
+     */
+    private void resetWeChatContext(WebDriver driver) {
+        try {
+            driver.switchTo().defaultContent();
+        } catch (Exception ignored) {
+            // 忽略
+        }
+    }
+
+    // ==========================================================================
+    // 视频号：JS 直连（不经过 WebDriver 元素引用）的操作工具
+    //
+    // 【为什么必须这样】视频号是「无界 Wujie」微前端，真实表单都在 Shadow DOM 里。
+    // 实测（Chrome 155 + ChromeDriver 155）：WebDriver **无法为 shadow 内的元素生成元素引用** ——
+    //   * executeScript 返回 shadow 内元素          → stale element reference: stale element not found in the current frame
+    //   * 原生 getShadowRoot().findElements(...)     → 同样的 stale element reference
+    // 因此不能再"先找 WebElement 再操作"。这里统一改成：
+    //   * 查找 / 聚焦 / 写入 / 点击  全部在页面 JS 里完成，Java 侧只接收基本类型（字符串/数字/布尔）；
+    //   * 上传文件这种必须投喂本地路径的，走 CDP：Runtime.evaluate 取 objectId → DOM.setFileInputFiles。
+    // ==========================================================================
+
+    /**
+     * JS 深查命中数量（只返回数字，不涉及元素引用）
+     */
+    private long jsDeepCount(WebDriver driver, String css) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS + "return __oc_deepAll(arguments[0]).length;", css);
+            return (r instanceof Number) ? ((Number) r).longValue() : 0L;
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * 把一组 CSS 选择器拼成 JS 数组字面量（内联进脚本，避免把 List 当参数传）
+     */
+    private String jsArray(String... cssList) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < cssList.length; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append('\'').append(cssList[i].replace("\\", "\\\\").replace("'", "\\'")).append('\'');
+        }
+        return sb.append(']').toString();
+    }
+
+    /**
+     * 往视频号「视频描述」写内容：全 JS 完成，返回写入后的文本（找不到元素返回 null）。
+     *
+     * <p>先选中全部内容再 {@code insertText}，保证重复调用是"替换"而不是"追加"，
+     * 且会触发 React 的 input 事件（实测页面能接受）。</p>
+     */
+    private String jsDeepWriteDesc(WebDriver driver, String text) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "var sels=" + jsArray(wechatDescInputCss()) + ", t=arguments[0];"
+                            + "for (var k=0;k<sels.length;k++){"
+                            + "  var a=__oc_deepAll(sels[k]);"
+                            + "  for (var i=0;i<a.length;i++){"
+                            + "    var el=a[i];"
+                            + "    var rect=el.getBoundingClientRect();"
+                            + "    if(rect.width<=0||rect.height<=0){continue;}"
+                            + "    el.focus();"
+                            + "    var range=document.createRange(); range.selectNodeContents(el);"
+                            + "    var sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);"
+                            + "    document.execCommand('insertText', false, t);"
+                            + "    return String(el.innerText || el.textContent || '');"
+                            + "  }"
+                            + "}"
+                            + "return null;",
+                    text);
+            return r == null ? null : String.valueOf(r);
+        } catch (Exception e) {
+            logger.warn("视频号描述写入(JS)异常：{}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 用 JS 在（含 Shadow DOM 的）页面里按可见文本点击（返回是否点到）
+     */
+    private boolean jsDeepClickByText(WebDriver driver, String text) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "function __oc_findText(root, t) {"
+                            + "  var prefer=root.querySelectorAll('button,a,[role=button]');"
+                            + "  for (var i=0;i<prefer.length;i++){"
+                            + "    if(String(prefer[i].innerText||'').trim()===t){var rc=prefer[i].getBoundingClientRect();if(rc.width>0&&rc.height>0){return prefer[i];}}"
+                            + "  }"
+                            + "  var divs=root.querySelectorAll('div,span');"
+                            + "  for (var j=0;j<divs.length;j++){"
+                            + "    if(String(divs[j].innerText||'').trim()===t){var r2=divs[j].getBoundingClientRect();if(r2.width>0&&r2.height>0){return divs[j];}}"
+                            + "  }"
+                            + "  var ns=root.querySelectorAll('*');"
+                            + "  for (var m=0;m<ns.length;m++){ if(ns[m].shadowRoot){ var f=__oc_findText(ns[m].shadowRoot, t); if(f){ return f; } } }"
+                            + "  return null;"
+                            + "}"
+                            + "var el=__oc_findText(document, arguments[0]);"
+                            + "if(!el){ return false; }"
+                            + "el.scrollIntoView({block:'center'}); el.click(); return true;",
+                    text);
+            return Boolean.TRUE.equals(r);
+        } catch (Exception e) {
+            logger.warn("视频号按文本点击(JS)异常({})：{}", text, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 用 JS 依次尝试多个 CSS 选择器，点击第一个可见元素（返回是否点到）
+     */
+    private boolean jsDeepClickCss(WebDriver driver, String... cssList) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "var sels=" + jsArray(cssList) + ";"
+                            + "for (var k=0;k<sels.length;k++){"
+                            + "  var a=__oc_deepAll(sels[k]);"
+                            + "  for (var i=0;i<a.length;i++){"
+                            + "    var rect=a[i].getBoundingClientRect();"
+                            + "    if(rect.width>0&&rect.height>0){ a[i].scrollIntoView({block:'center'}); a[i].click(); return true; }"
+                            + "  }"
+                            + "}"
+                            + "return false;");
+            return Boolean.TRUE.equals(r);
+        } catch (Exception e) {
+            logger.warn("视频号点击(JS)异常：{}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 是否存在可见的命中元素（返回布尔）
+     */
+    private boolean jsDeepAnyVisible(WebDriver driver, String... cssList) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "var sels=" + jsArray(cssList) + ";"
+                            + "for (var k=0;k<sels.length;k++){"
+                            + "  var a=__oc_deepAll(sels[k]);"
+                            + "  for (var i=0;i<a.length;i++){"
+                            + "    var rect=a[i].getBoundingClientRect();"
+                            + "    if(rect.width>0&&rect.height>0){ return true; }"
+                            + "  }"
+                            + "}"
+                            + "return false;");
+            return Boolean.TRUE.equals(r);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 页面里是否存在某个可见的文本（含 Shadow DOM）
+     */
+    private boolean jsDeepHasText(WebDriver driver, String... texts) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    "function __oc_hasText(root, list) {"
+                            + "  var ns=root.querySelectorAll('button,a,[role=button],div,span');"
+                            + "  for (var i=0;i<ns.length;i++){"
+                            + "    var t=String(ns[i].innerText||'').trim();"
+                            + "    if(!t){continue;}"
+                            + "    for (var k=0;k<list.length;k++){ if(t.indexOf(list[k])>=0){ var rc=ns[i].getBoundingClientRect(); if(rc.width>0&&rc.height>0){ return true; } } }"
+                            + "  }"
+                            + "  var all=root.querySelectorAll('*');"
+                            + "  for (var j=0;j<all.length;j++){ if(all[j].shadowRoot){ if(__oc_hasText(all[j].shadowRoot, list)){ return true; } } }"
+                            + "  return false;"
+                            + "}"
+                            + "return __oc_hasText(document, " + jsArray(texts) + ");");
+            return Boolean.TRUE.equals(r);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 视频号：把本地文件投喂到（Shadow DOM 里的）{@code input[type=file]}。
+     *
+     * <p>WebDriver 拿不到 shadow 内元素，所以走 CDP：
+     * {@code Runtime.evaluate} 取 input 的 objectId → {@code DOM.setFileInputFiles} 设置文件，
+     * 最后用普通 JS 回读 {@code files.length} 校验。</p>
+     */
+    private boolean jsDeepSetFileByCdp(WebDriver driver, String css, File video) {
+        if (!(driver instanceof ChromeDriver)) {
+            return false;
+        }
+        ChromeDriver chrome = (ChromeDriver) driver;
+        try {
+            // 【坑】Runtime.evaluate 是当"脚本"执行的，顶层 return 非法（SyntaxError: Illegal return statement），
+            // 必须包成 IIFE；否则拿到的是 SyntaxError 对象的 objectId，setFileInputFiles 会静默无效。
+            String expr = "(function(){" + DEEP_QUERY_JS
+                    + "var a=__oc_deepAll('" + css.replace("\\", "\\\\").replace("'", "\\'") + "');"
+                    + "return a.length ? a[0] : null;"
+                    + "})()";
+            java.util.Map<String, Object> evalParams = new java.util.HashMap<>();
+            evalParams.put("expression", expr);
+            evalParams.put("returnByValue", false);
+            java.util.Map<String, Object> evalRes = chrome.executeCdpCommand("Runtime.evaluate", evalParams);
+            if (containsKeyDeep(evalRes, "exceptionDetails")) {
+                logger.warn("视频号投喂文件：CDP 表达式出错：{}", evalRes);
+                return false;
+            }
+            String objectId = findStringValue(evalRes, "objectId");
+            if (objectId == null) {
+                return false;
+            }
+
+            java.util.Map<String, Object> setParams = new java.util.HashMap<>();
+            setParams.put("files", java.util.Collections.singletonList(video.getAbsolutePath()));
+            setParams.put("objectId", objectId);
+            chrome.executeCdpCommand("DOM.setFileInputFiles", setParams);
+            sleepQuietly(500);
+
+            // 用【同一个节点】回读 files 数量校验。
+            // 注意：不能再用深查（jsFileCount）——投喂后页面常会重渲染换掉 input 节点，
+            // 深查拿到的是新节点（files=0），会把成功误判成失败。
+            java.util.Map<String, Object> callParams = new java.util.HashMap<>();
+            callParams.put("objectId", objectId);
+            callParams.put("functionDeclaration", "function(){ return this.files ? this.files.length : 0; }");
+            callParams.put("returnByValue", true);
+            java.util.Map<String, Object> callRes = chrome.executeCdpCommand("Runtime.callFunctionOn", callParams);
+            Object value = findValueDeep(callRes, "value");
+            long count = (value instanceof Number) ? ((Number) value).longValue() : 0L;
+            if (count > 0) {
+                logger.info("视频号：（CDP）已把文件投喂到 {}，files={}", css, count);
+            }
+            return count > 0;
+        } catch (Exception e) {
+            logger.warn("CDP 投喂文件失败({})：{}", css, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * JS 读回（Shadow DOM 里的）{@code input[type=file]} 的 files 数量（-1 表示找不到元素）
+     */
+    private long jsFileCount(WebDriver driver, String css) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "var a=__oc_deepAll(arguments[0]);"
+                            + "if(!a.length){return -1;}"
+                            + "return a[0].files ? a[0].files.length : 0;",
+                    css);
+            return (r instanceof Number) ? ((Number) r).longValue() : -1L;
+        } catch (Exception e) {
+            return -1L;
+        }
+    }
+
+    /**
+     * 在（可能嵌套的）Map 里递归找 key 对应的字符串值（适配不同的 CDP 返回结构）
+     */
+    @SuppressWarnings("unchecked")
+    private String findStringValue(java.util.Map<String, Object> map, String key) {
+        if (map == null) {
+            return null;
+        }
+        Object v = map.get(key);
+        if (v instanceof String) {
+            return (String) v;
+        }
+        for (Object val : map.values()) {
+            if (val instanceof java.util.Map) {
+                String r = findStringValue((java.util.Map<String, Object>) val, key);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 在（可能嵌套的）Map 里递归判断是否存在某个 key
+     */
+    @SuppressWarnings("unchecked")
+    private boolean containsKeyDeep(java.util.Map<String, Object> map, String key) {
+        if (map == null) {
+            return false;
+        }
+        if (map.containsKey(key)) {
+            return true;
+        }
+        for (Object val : map.values()) {
+            if (val instanceof java.util.Map
+                    && containsKeyDeep((java.util.Map<String, Object>) val, key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 在（可能嵌套的）Map 里递归找 key 对应的基本类型值（String / Number / Boolean）
+     */
+    @SuppressWarnings("unchecked")
+    private Object findValueDeep(java.util.Map<String, Object> map, String key) {
+        if (map == null) {
+            return null;
+        }
+        Object v = map.get(key);
+        if (v instanceof String || v instanceof Number || v instanceof Boolean) {
+            return v;
+        }
+        for (Object val : map.values()) {
+            if (val instanceof java.util.Map) {
+                Object r = findValueDeep((java.util.Map<String, Object>) val, key);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 填写视频号标题（写入「视频描述」富文本框，带重试）。
+     *
+     * <p>全程 JS 直连 Shadow DOM（WebDriver 拿不到 shadow 内元素，详见上方说明）。</p>
+     */
+    private void fillWeChatTitle(WebDriver driver, String title) throws InterruptedException {
+        if (title == null || title.isBlank()) {
+            return;
+        }
+        String sample = title.substring(0, Math.min(5, title.length()));
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(2).toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            String now = jsDeepWriteDesc(driver, title);
+            if (now == null) {
+                logger.info("视频号「视频描述」暂时找不到{}，5 秒后重试", describeDescCandidates(driver));
+            } else if (now.contains(sample)) {
+                logger.info("视频号标题（视频描述）已填写：{}", title);
+                return;
+            } else {
+                logger.info("视频号「视频描述」找到了但写不进去（读回=[{}]），5 秒后重试",
+                        now.length() > 40 ? now.substring(0, 40) : now);
+            }
+            sleepQuietly(5000);
+        }
+        throw new IllegalStateException("视频号标题写入失败（重试 2 分钟）；页面元素：" + describeWeChatDom(driver));
+    }
+
+    /**
+     * 诊断用：逐个候选选择器统计命中数量
+     */
+    private String describeDescCandidates(WebDriver driver) {
+        StringBuilder sb = new StringBuilder();
+        for (String css : wechatDescInputCss()) {
+            sb.append(" | ").append(css).append('=').append(jsDeepCount(driver, css));
+        }
+        return sb.toString();
+    }
+
+
+    /**
+     * 打印元素关键信息（shadow DOM 内也能用）：是否可编辑、当前文本、outerHTML 片段
+     */
+    private String describeElement(WebDriver driver, WebElement element) {
+        try {
+            Object info = ((JavascriptExecutor) driver).executeScript(
+                    "var el=arguments[0];"
+                            + "var t=el.innerText||el.value||el.textContent||'';"
+                            + "return 'isContentEditable=' + el.isContentEditable"
+                            + " + ' text=' + String(t).slice(0,30)"
+                            + " + ' html=' + String(el.outerHTML||'').slice(0,200);", element);
+            return String.valueOf(info);
+        } catch (Exception e) {
+            return "取元素信息失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 往（可能是 Shadow DOM 里的）富文本 / 输入框写值。
+     *
+     * <p>视频号的"视频描述"是 React 管理的 contenteditable（{@code contenteditable=""}），
+     * 直接改 innerText 不触发 React 的 input 事件，会被无视/重置。所以顺序为：
+     * 聚焦 → {@code execCommand('insertText')} → <b>CDP Input.insertText</b> →
+     * 剪贴板粘贴 → sendKeys，每步都读回来校验。</p>
+     */
+    private boolean setEditorText(WebDriver driver, WebElement element, String text) {
+        try {
+            clickElement(driver, element);
+        } catch (Exception ignored) {
+            // 忽略
+        }
+        focusElement(driver, element);
+
+        if (jsInsertText(driver, element, text)) {
+            logger.info("视频号描述已写入（execCommand）");
+            return true;
+        }
+        if (cdpInsertText(driver, element, text)) {
+            logger.info("视频号描述已写入（CDP insertText）");
+            return true;
+        }
+        try {
+            pasteText(driver, element, text);
+            if (verifyTyped(driver, element, text)) {
+                logger.info("视频号描述已写入（剪贴板粘贴）");
+                return true;
+            }
+        } catch (Exception ignored) {
+            // 忽略
+        }
+        try {
+            element.sendKeys(text);
+            if (verifyTyped(driver, element, text)) {
+                logger.info("视频号描述已写入（sendKeys）");
+                return true;
+            }
+        } catch (Exception ignored) {
+            // 忽略
+        }
+        return false;
+    }
+
+    /**
+     * JS 聚焦（shadow DOM 内元素也能用）
+     */
+    private void focusElement(WebDriver driver, WebElement element) {
+        try {
+            ((JavascriptExecutor) driver).executeScript("arguments[0].focus();", element);
+        } catch (Exception ignored) {
+            // 忽略
+        }
+    }
+
+    /**
+     * 用 {@code execCommand('insertText')} 写入（对 React 富文本编辑器最有效，会触发 input 事件）
+     */
+    private boolean jsInsertText(WebDriver driver, WebElement element, String text) {
+        try {
+            ((JavascriptExecutor) driver).executeScript(
+                    "var el=arguments[0], t=arguments[1];"
+                            + "el.focus();"
+                            + "var sel=window.getSelection();"
+                            + "var range=document.createRange();"
+                            + "range.selectNodeContents(el);"
+                            + "range.collapse(false);"
+                            + "sel.removeAllRanges();"
+                            + "sel.addRange(range);"
+                            + "document.execCommand('insertText', false, t);", element, text);
+            sleepQuietly(400);
+            return verifyTyped(driver, element, text);
+        } catch (Exception e) {
+            logger.debug("execCommand 写入失败：{}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 用 CDP 的 {@code Input.insertText} 注入文本（走浏览器输入管道，最接近真人输入）
+     */
+    private boolean cdpInsertText(WebDriver driver, WebElement element, String text) {
+        try {
+            if (!(driver instanceof ChromeDriver)) {
+                return false;
+            }
+            focusElement(driver, element);
+            sleepQuietly(200);
+            ((ChromeDriver) driver).executeCdpCommand("Input.insertText", java.util.Map.of("text", text));
+            sleepQuietly(500);
+            return verifyTyped(driver, element, text);
+        } catch (Exception e) {
+            logger.debug("CDP insertText 失败：{}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 选择视频号视频文件。
+     *
+     * <p>视频号的上传控件藏在 Wujie Shadow DOM 里，<b>WebDriver 无法为 shadow 内元素生成元素引用</b>
+     * （会报 {@code stale element reference: stale element not found in the current frame}），
+     * 所以 sendKeys 那条路走不通。这里改走 CDP：
+     * {@code Runtime.evaluate} 拿到 input 的 objectId → {@code DOM.setFileInputFiles} 直接投喂本地文件路径。</p>
+     */
+    private void selectWeChatVideoFile(WebDriver driver, File video) {
+        if (video == null || !video.exists()) {
+            throw new IllegalStateException("视频号上传失败：视频文件不存在 " + video);
+        }
+        long deadline = System.currentTimeMillis() + Duration.ofSeconds(30).toMillis();
+        boolean ok = false;
+        while (System.currentTimeMillis() < deadline && !ok) {
+            for (String css : wechatFileInputCss()) {
+                if (jsDeepSetFileByCdp(driver, css, video)) {
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok) {
+                sleepQuietly(1000);
+            }
+        }
+        if (!ok) {
+            throw new IllegalStateException("视频号上传失败：未能把视频投喂到 input[type=file]（含 Shadow DOM）；页面元素："
+                    + describeWeChatDom(driver));
+        }
+        logger.info("视频号视频路径已提交：{}", video.getAbsolutePath());
+    }
+
+    /**
+     * 等待视频号上传 / 转码完成（穿透 Shadow DOM 判断"上传中 / 进度条"是否消失）。
+     */
+    /**
+     * 等待视频号上传 / 转码完成。
+     *
+     * <p>用<b>正面信号</b>判断：出现「重新上传 / 更换封面 / 上传成功」文案，
+     * 或「发表」按钮不再带 {@code weui-desktop-btn_disabled}。超时不抛异常，交给后面发表重试兜底。</p>
+     *
+     * <p>不能再靠"没有 progress/loading 就算完成"：实测空白页上 {@code [class*='loading']} 就有 22 个，
+     * 那个判断永远为假，会把每一步都拖满超时。</p>
+     */
+    private void waitWeChatUploadFinished(WebDriver driver, Duration timeout) {
+        logger.info("等待视频号上传 / 转码完成（最多 {} 分钟）...", timeout.toMinutes());
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            if (jsWeChatUploadFinished(driver)) {
+                logger.info("视频号上传 / 转码完成");
+                return;
+            }
+            logger.info("视频号仍在上传 / 转码中...");
+            sleepQuietly(5000);
+        }
+        logger.warn("等待视频号上传超时，交给发表重试兜底");
+    }
+
+    /**
+     * 视频号上传是否完成（正面信号，全 JS，含 Shadow DOM）
+     */
+    private boolean jsWeChatUploadFinished(WebDriver driver) {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    DEEP_QUERY_JS
+                            + "function __oc_has(root, list){"
+                            + "  var ns=root.querySelectorAll('button,a,[role=button],div,span');"
+                            + "  for (var i=0;i<ns.length;i++){ var t=String(ns[i].innerText||'').trim();"
+                            + "    for (var k=0;k<list.length;k++){ if(t===list[k]){ var rc=ns[i].getBoundingClientRect(); if(rc.width>0&&rc.height>0){ return true; } } } }"
+                            + "  var all=root.querySelectorAll('*');"
+                            + "  for (var j=0;j<all.length;j++){ if(all[j].shadowRoot && __oc_has(all[j].shadowRoot, list)){ return true; } }"
+                            + "  return false;"
+                            + "}"
+                            + "if(__oc_has(document, ['重新上传','更换封面','上传成功'])){ return true; }"
+                            + "var btns=__oc_deepAll('button');"
+                            + "for (var i=0;i<btns.length;i++){ var t=String(btns[i].innerText||'').trim();"
+                            + "  if(t==='发表'){"
+                            + "    var rc=btns[i].getBoundingClientRect();"
+                            + "    if(rc.width>0&&rc.height>0 && String(btns[i].className).indexOf('disabled')<0){ return true; }"
+                            + "  }"
+                            + "}"
+                            + "return false;");
+            return Boolean.TRUE.equals(r);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 点击「发表」并确认发布成功（失败会重试，最多 10 分钟）。
+     */
+    private void publishWeChatVideoAndConfirm(WebDriver driver) {
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(10).toMillis();
+        int attempt = 0;
+        while (System.currentTimeMillis() < deadline) {
+            attempt++;
+            try {
+                // 全 JS 点击（Wujie Shadow DOM 里 WebDriver 拿不到元素）：先按文本"发表"，再退回主按钮类名
+                boolean clicked = jsDeepClickByText(driver, "发表");
+                if (!clicked) {
+                    clicked = jsDeepClickCss(driver, "button.weui-desktop-btn_primary", "button[class*='primary']");
+                }
+                if (!clicked) {
+                    logger.info("暂未找到视频号「发表」按钮（第 {} 次），稍后重试", attempt);
+                    sleepQuietly(5000);
+                    continue;
+                }
+                logger.info("已点击视频号「发表」按钮（第 {} 次）", attempt);
+
+                if (waitWeChatPublishSuccess(driver, Duration.ofSeconds(90))) {
+                    return;
+                }
+                PageDumpUtil.snapshot(driver, "发表未确认_第" + attempt + "次");
+            } catch (Exception e) {
+                logger.warn("视频号发表尝试失败：{}", e.getMessage());
+            }
+            sleepQuietly(3000);
+        }
+        throw new IllegalStateException("视频号发布失败：多次尝试后仍未确认发布成功");
+    }
+
+    /**
+     * 判断视频号是否发布成功（URL 离开发表页 / 出现成功提示）。
+     */
+    private boolean waitWeChatPublishSuccess(WebDriver driver, Duration timeout) {
+        long deadline = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                String url = driver.getCurrentUrl();
+                if (url != null && !url.contains("/post/create")) {
+                    logger.info("视频号发布成功：页面已跳转到 {}", url);
+                    return true;
+                }
+                if (jsDeepHasText(driver, "发表成功", "发布成功", "审核中")) {
+                    logger.info("视频号发布成功：出现成功提示");
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // 忽略，继续等待
+            }
+            sleepQuietly(1000);
+        }
+        return false;
+    }
+
+    /**
+     * 把（含 Shadow DOM 的）页面元素概况打到日志 + report，并把完整 DOM 落盘，便于失败定位
+     */
+    private void dumpWeChatDom(WebDriver driver) {
+        String info = describeWeChatDom(driver);
+        logger.info("视频号页面元素（含 Shadow DOM）：{}", info);
+        PageDumpUtil.note("视频号页面元素（含 Shadow DOM）：" + info);
+        dumpWeChatShadowHtml(driver);
+    }
+
+    /**
+     * 采集（含 Shadow DOM 的）页面里 input / textarea / select / contenteditable / button 的概况，
+     * 并统计 shadowRoot 数量与 wujie-app 的 shadow 开闭状态。
+     */
+    private String describeWeChatDom(WebDriver driver) {
+        try {
+            Object info = ((JavascriptExecutor) driver).executeScript(
+                    "function __oc_collect() {"
+                            + "  var out = [];"
+                            + "  var roots = 0;"
+                            + "  var wapps = document.querySelectorAll('wujie-app');"
+                            + "  for (var w = 0; w < wapps.length; w++) {"
+                            + "    out.push('wujie-app[' + w + '] shadow=' + (wapps[w].shadowRoot ? 'open' : 'closed/null'));"
+                            + "  }"
+                            + "  function walk(root) {"
+                            + "    var ins = root.querySelectorAll('input,textarea,select,[contenteditable],button');"
+                            + "    for (var i = 0; i < ins.length; i++) {"
+                            + "      var n = ins[i];"
+                            + "      out.push(n.tagName + (n.getAttribute('type') ? '[' + n.getAttribute('type') + ']' : '')"
+                            + "        + ' ph=' + (n.getAttribute('placeholder') || '')"
+                            + "        + ' txt=' + String(n.innerText || n.value || '').trim().slice(0, 20)"
+                            + "        + ' cls=' + (n.className || ''));"
+                            + "    }"
+                            + "    var all = root.querySelectorAll('*');"
+                            + "    for (var j = 0; j < all.length; j++) {"
+                            + "      if (all[j].shadowRoot) { roots++; walk(all[j].shadowRoot); }"
+                            + "    }"
+                            + "  }"
+                            + "  walk(document);"
+                            + "  out.unshift('shadowRootCount=' + roots);"
+                            + "  return out;"
+                            + "}return __oc_collect();");
+            String s = String.valueOf(info);
+            return s.length() > 3000 ? s.substring(0, 3000) : s;
+        } catch (Exception e) {
+            return "诊断失败：" + e.getMessage();
+        }
+    }
+
+    /**
+     * 把（含 Shadow DOM 的）完整 DOM 序列化写到本次快照目录（shadow-dom.html），便于离线排查。
+     * Shadow DOM 的内容不会出现在 driver.getPageSource() 里，所以单独存一份。
+     */
+    private void dumpWeChatShadowHtml(WebDriver driver) {
+        try {
+            Object html = ((JavascriptExecutor) driver).executeScript(
+                    "function __oc_ser(root) {"
+                            + "  var sb = [];"
+                            + "  function walk(n) {"
+                            + "    if (n.nodeType === 1) {"
+                            + "      var tag = n.tagName.toLowerCase();"
+                            + "      if (tag === 'script' || tag === 'style' || tag === 'noscript' || tag === 'svg' || tag === 'path') { return; }"
+                            + "      sb.push('<' + tag);"
+                            + "      var a = n.attributes || [];"
+                            + "      for (var i = 0; i < a.length; i++) { sb.push(' ' + a[i].name + '=' + String(a[i].value).slice(0, 60)); }"
+                            + "      sb.push('>');"
+                            + "      if (n.shadowRoot) { sb.push('<#shadow-root>'); var sc = n.shadowRoot.childNodes; for (var k = 0; k < sc.length; k++) { walk(sc[k]); } sb.push('</#shadow-root>'); }"
+                            + "      var ch = n.childNodes;"
+                            + "      for (var j = 0; j < ch.length; j++) { walk(ch[j]); }"
+                            + "      sb.push('</' + tag + '>');"
+                            + "    } else if (n.nodeType === 3) {"
+                            + "      var t = String(n.textContent || '').trim();"
+                            + "      if (t) { sb.push(t); }"
+                            + "    }"
+                            + "  }"
+                            + "  var cs = root.childNodes || [];"
+                            + "  for (var i = 0; i < cs.length; i++) { walk(cs[i]); }"
+                            + "  return sb.join('');"
+                            + "}return __oc_ser(document);");
+            File dir = PageDumpUtil.getCurrentRunDir();
+            if (dir != null && html != null) {
+                File target = new File(dir, "shadow-dom.html");
+                FileUtil.writeUtf8String(String.valueOf(html), target);
+                logger.info("已把（含 Shadow DOM 的）完整 DOM 写到：{}", target.getAbsolutePath());
+                PageDumpUtil.note("完整 DOM（含 Shadow）：" + target.getName());
+            }
+        } catch (Exception e) {
+            logger.warn("dumpWeChatShadowHtml 失败：{}", e.getMessage());
+        }
     }
 
 }
